@@ -1,0 +1,71 @@
+.electric-border {
+  position: relative;
+  border-radius: inherit;
+  overflow: visible;
+  isolation: isolate;
+}
+
+.eb-canvas-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.eb-canvas {
+  display: block;
+}
+
+.eb-content {
+  position: relative;
+  border-radius: inherit;
+  z-index: 1;
+}
+
+.eb-layers {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.eb-glow-1,
+.eb-glow-2,
+.eb-background-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.eb-glow-1 {
+  border: 2px solid rgba(125, 249, 255, 0.6);
+  filter: blur(1px);
+}
+
+.eb-glow-2 {
+  border: 2px solid #7df9ff;
+  filter: blur(4px);
+}
+
+.eb-background-glow {
+  transform: scale(1.1);
+  filter: blur(32px);
+  opacity: 0.3;
+  background: linear-gradient(-30deg, #7df9ff, transparent, #7df9ff);
+}
+
+.electric-card {
+  background: rgba(12, 12, 20, 0.85);
+  backdrop-filter: blur(20px);
+  padding: 24px;
+  border-radius: 20px;
+  color: white;
+  transition: transform 0.3s ease;
+}
+
+.electric-card:hover {
+  transform: translateY(-6px);
+}

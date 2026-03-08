@@ -1,0 +1,112 @@
+.chroma-grid {
+  --x: 50%;
+  --y: 50%;
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  justify-content: center;
+  gap: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+
+@media (max-width: 1024px) {
+  .chroma-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .chroma-grid {
+    grid-template-columns: 1fr;
+    max-width: 320px;
+  }
+}
+
+.chroma-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--card-gradient, linear-gradient(145deg, rgba(255,255,255,0.04), rgba(0,0,0,0.6)));
+  transition: border-color 0.4s ease;
+}
+
+.chroma-card:hover {
+  border-color: var(--card-border, rgba(255, 255, 255, 0.12));
+}
+
+.chroma-img-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 19px 19px 0 0;
+}
+
+.chroma-img-wrapper img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  display: block;
+  opacity: 0.7;
+  transition: opacity 0.4s ease, transform 0.6s ease;
+}
+
+.chroma-card:hover .chroma-img-wrapper img {
+  opacity: 0.9;
+  transform: scale(1.04);
+}
+
+.chroma-info {
+  padding: 1.25rem 1.3rem;
+  color: white;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.chroma-info h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+}
+
+.chroma-info .chroma-handle {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.3);
+  font-family: monospace;
+}
+
+.chroma-info .chroma-subtitle {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 0.2rem;
+}
+
+.chroma-spotlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+  border-radius: 20px;
+  background: radial-gradient(
+    circle var(--radius, 300px) at var(--x) var(--y),
+    transparent 0%,
+    rgba(0, 0, 0, 0.65) 100%
+  );
+}
+
+.chroma-fade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 11;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 1;
+}
