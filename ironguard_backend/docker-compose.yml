@@ -23,7 +23,7 @@ services:
       - mongodb_data:/data/db
 
   chromadb:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:0.5.1
     ports:
       - "8001:8000"
     volumes:
