@@ -116,4 +116,13 @@ async def unblock_user(request: UnblockRequest):
     Restore a blocked user's trust score to 100 and reset malicious attempts.
     """
     await user_behavior_monitor.reset_trust_score(request.user_id)
-    return {"status": "success", "message": f"Trust score restored for user {request.user_id}"}
+    # Fetch result to confirm
+    new_status = await user_behavior_monitor.get_or_create_trust_score(request.user_id)
+    return {
+        "status": "success", 
+        "message": f"Trust score restored for user {request.user_id}",
+        "current_state": {
+            "trust_score": new_status.trust_score,
+            "malicious_attempts": new_status.malicious_attempts
+        }
+    }

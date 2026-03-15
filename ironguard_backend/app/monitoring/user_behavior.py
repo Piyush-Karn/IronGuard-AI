@@ -53,6 +53,7 @@ class UserBehaviorMonitor:
 
     async def should_terminate_session(self, user_id: str) -> bool:
         trust_score = await self.get_or_create_trust_score(user_id)
+        print(f"Checking session for {user_id}: Score={trust_score.trust_score}, Attempts={trust_score.malicious_attempts}")
         if trust_score.malicious_attempts >= 3 or trust_score.trust_score <= 0:
             return True
         return False
@@ -60,15 +61,19 @@ class UserBehaviorMonitor:
     async def reset_trust_score(self, user_id: str):
         db = get_database()
         if db is None:
+            print("Reset failed: MongoDB not connected")
             return
 
-        await db.trust_scores.update_one(
+        print(f"Resetting trust score for user: {user_id}")
+        result = await db.trust_scores.update_one(
             {"user_id": user_id},
             {"$set": {
                 "trust_score": 100,
                 "malicious_attempts": 0,
                 "last_updated": datetime.utcnow()
-            }}
+            }},
+            upsert=True
         )
+        print(f"Reset result: matched={result.matched_count}, modified={result.modified_count}, upserted_id={result.upserted_id}")
 
 user_behavior_monitor = UserBehaviorMonitor()
