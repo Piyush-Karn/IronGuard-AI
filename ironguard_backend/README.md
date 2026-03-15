@@ -3,11 +3,12 @@
 IronGuard is a security middleware platform that protects AI systems from prompt injection attacks, malicious inputs, and adversarial users. It serves as a security layer between end users and Large Language Models (LLMs).
 
 ## Architecture
-- **API Gateway**: Exposes FastAPI endpoints for prompt scanning, processing, and admin monitoring.
-- **Threat Detection Engine**: Scans prompts using Regex Patterns and Semantic Analysis via SentenceTransformers and ChromaDB.
-- **Guardrail Integrations**: Orchestrates connections to Guardrails AI, OpenAI Moderation, and LMQL.
-- **Decision Engine & Risk Scorer**: Analyzes threats and outputs explainable risk scores (Safe, Suspicious, Malicious) along with specific reasons and attack types.
-- **Response Monitor**: Validates outgoing LLM responses for system prompt leakage.
+IronGuard implements a **3-Layer Hybrid Detection Pipeline**:
+1.  **Layer 1: Pattern Detector**: Regex and fuzzy matching (error-tolerant).
+2.  **Layer 2: Semantic Analyzer**: Vector similarity search using ChromaDB (~60k attack vectors).
+3.  **Layer 3: Intent Classifier**: Context-aware AI detection using a dedicated transformer model.
+
+For a deep dive into the architecture, see the **[Architecture Documentation](../documentation/architecture.md)**.
 
 ## Getting Started
 

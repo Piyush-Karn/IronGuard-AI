@@ -49,13 +49,18 @@ STEP 2: START THE BACKEND SYSTEM
 STEP 3: INITIALIZE THE ATTACK DATASET
 ------------------------------------------------------
 
-Before testing, we need to load known attack patterns into the vector database (ChromaDB) so the Threat Detection Engine works correctly.
+Before testing, we need to load known attack patterns into the vector database. The new dataset is significantly larger (~60,000 examples) and is automatically pulled from Hugging Face during the first initialization.
 
 1. Ensure the containers are running from Step 2.
-2. Run this command to execute the initialization script inside the backend container:
-   docker-compose exec backend python datasets/init_dataset.py
+2. Run this command to execute the initialization script:
+   ```bash
+   docker-compose exec backend python -m seed_data.init_dataset
+   ```
 
-   You should see a success message indicating the attack patterns were added.
+   (Note: The first run may take a few minutes as it downloads and encodes the dataset).
+
+For detailed documentation on the detection layers, see:
+**[Detection Layers Guide](../documentation/detection_layers.md)**
 
 ------------------------------------------------------
 STEP 4: TEST THE API 
