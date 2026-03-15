@@ -29,6 +29,12 @@ from sentence_transformers import SentenceTransformer
 SentenceTransformer("all-MiniLM-L6-v2")
 EOF
 
+# Pre-download intent classifier model (prevents 150s delay on first startup)
+RUN python - <<EOF
+from transformers import pipeline
+pipeline("text-classification", model="protectai/deberta-v3-base-prompt-injection-v2")
+EOF
+
 # Copy the rest of the project
 COPY . .
 

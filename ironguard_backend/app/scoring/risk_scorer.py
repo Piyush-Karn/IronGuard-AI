@@ -2,16 +2,18 @@
 Risk Scorer — aggregates signals from all three detectors.
 
 Scoring weights:
-  Regex pattern match          → +60  (known exact attack signatures)
-  Semantic similarity hit      → +30  (vector proximity to known attacks)
-  Classifier malicious intent  → +50  (contextual / novel attacks)
+  Regex pattern match          → +60
+  Semantic similarity hit      → +30
+  Classifier malicious intent  → +50
+  Guardrail fail               → +30
 
-Max observable score:  140  (capped at 100 in the output)
-
-Classification bands:
-  0  – 29  → Safe
-  30 – 59  → Suspicious   (action: Sanitize)
-  60+      → Malicious    (action: Block)
+Hard block categories (instant score 100, always blocked):
+  Sexual / Harmful Content
+  Hate Speech / Discrimination
+  Violence / Weapons
+  Drug Synthesis
+  Self Harm / Suicide
+  Terrorism / Extremism
 """
 
 from app.models.schemas import RiskExplanation
@@ -19,14 +21,24 @@ from app.threat_detection.pattern import pattern_detector
 from app.threat_detection.similarity import similarity_detector
 from app.threat_detection.intent_classifier import ClassifierResult
 
+# These categories skip scoring entirely — always return 100 / Malicious
+HARD_BLOCK_CATEGORIES = {
+    "Sexual / Harmful Content",
+    "Hate Speech / Discrimination",
+    "Violence / Weapons",
+    "Drug Synthesis",
+    "Self Harm / Suicide",
+    "Terrorism / Extremism",
+}
+
 
 class RiskScorer:
     def __init__(self):
         self.weights = {
-            "pattern_match":   60,
+            "pattern_match":     60,
             "vector_similarity": 30,
             "classifier_intent": 50,
-            "guardrail_fail":   30,
+            "guardrail_fail":    30,
         }
 
     def calculate_risk(
@@ -42,7 +54,18 @@ class RiskScorer:
 
         # ── 1. Regex pattern detection ────────────────────────────────────────
         pat_malicious, pat_reasons, pat_types = pattern_detector.detect(prompt)
+
         if pat_malicious:
+            # Hard block check — instant 100 for critical categories
+            matched_hard = [t for t in pat_types if t in HARD_BLOCK_CATEGORIES]
+            if matched_hard:
+                return RiskExplanation(
+                    risk_score=100,
+                    classification="Malicious",
+                    reasons=pat_reasons,
+                    attack_types=pat_types,
+                )
+
             score += self.weights["pattern_match"]
             reasons.extend(pat_reasons)
             attack_types.update(pat_types)
@@ -61,7 +84,6 @@ class RiskScorer:
                 f"Intent classifier flagged as {classifier_result.label} "
                 f"(confidence: {classifier_result.confidence:.0%})"
             )
-            # Map classifier label → IronGuard attack taxonomy
             label_to_type = {
                 "PROMPT_INJECTION":    "Prompt Injection",
                 "JAILBREAK":           "Jailbreak Attempt",
@@ -73,7 +95,7 @@ class RiskScorer:
             if mapped:
                 attack_types.add(mapped)
 
-        # ── 4. Guardrail integrations (stub / external) ───────────────────────
+        # ── 4. Guardrail integrations ─────────────────────────────────────────
         if guardrail_results and not guardrail_results.get("safe", True):
             score += self.weights["guardrail_fail"]
             reasons.append(
