@@ -57,4 +57,18 @@ class UserBehaviorMonitor:
             return True
         return False
 
+    async def reset_trust_score(self, user_id: str):
+        db = get_database()
+        if db is None:
+            return
+
+        await db.trust_scores.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "trust_score": 100,
+                "malicious_attempts": 0,
+                "last_updated": datetime.utcnow()
+            }}
+        )
+
 user_behavior_monitor = UserBehaviorMonitor()

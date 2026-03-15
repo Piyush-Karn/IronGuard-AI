@@ -70,4 +70,10 @@ export const api = {
 
   getUserBehavior: () => 
     request<any>("/analytics/user-behavior"),
+
+  unblockUser: (userId: string) => 
+    request<{status: string, message: string}>("/unblock", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    }),
 };

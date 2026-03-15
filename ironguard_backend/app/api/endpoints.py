@@ -105,3 +105,15 @@ async def simulate_attack(sim_req: SimulateRequest, req: Request):
     # Convenience endpoint for testing
     prompt_req = PromptRequest(user_id=sim_req.user_id, prompt=sim_req.prompt)
     return await scan_prompt(prompt_req, req)
+
+
+class UnblockRequest(BaseModel):
+    user_id: str
+
+@router.post("/unblock")
+async def unblock_user(request: UnblockRequest):
+    """
+    Restore a blocked user's trust score to 100 and reset malicious attempts.
+    """
+    await user_behavior_monitor.reset_trust_score(request.user_id)
+    return {"status": "success", "message": f"Trust score restored for user {request.user_id}"}
