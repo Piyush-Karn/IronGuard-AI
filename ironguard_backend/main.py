@@ -12,8 +12,8 @@ async def lifespan(app: FastAPI):
     await connect_to_mongo()
     chroma_manager.connect()
     
-    # Optional: Initialize dataset if Chroma is empty
-    # from datasets.init_dataset import initialize_dataset
+    # Optional: Initialize seed_data if Chroma is empty
+    # from seed_data.init_dataset import initialize_dataset
     # initialize_dataset()
     
     yield
