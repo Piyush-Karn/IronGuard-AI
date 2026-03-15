@@ -13,8 +13,8 @@ async def lifespan(app: FastAPI):
     chroma_manager.connect()
     
     # Optional: Initialize seed_data if Chroma is empty
-    # from seed_data.init_dataset import initialize_dataset
-    # initialize_dataset()
+    from seed_data.init_dataset import initialize_dataset
+    initialize_dataset()
     
     yield
     # Shutdown Events

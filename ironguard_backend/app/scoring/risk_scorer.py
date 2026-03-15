@@ -6,7 +6,7 @@ class RiskScorer:
     def __init__(self):
         # Weights for different signals
         self.weights = {
-            "pattern_match": 40,
+            "pattern_match": 60,
             "vector_similarity": 30,
             "guardrail_fail": 30
         }

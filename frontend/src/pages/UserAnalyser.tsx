@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import CodeLoader from "@/components/ui/CodeLoader";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useUser, useClerk } from "@clerk/clerk-react";
-import { Shield, Send, AlertTriangle, CheckCircle, XCircle, ArrowUp, Plus, Lock, BarChart3 } from "lucide-react";
+import CodeLoader from "@/components/ui/CodeLoader";
+import { api, ScanResponse, RiskExplanation } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
+import { Shield, Send, AlertTriangle, CheckCircle, XCircle, ArrowUp, Plus, Lock, BarChart3, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
@@ -9,7 +11,7 @@ import AuroraBackground from "@/components/ui/AuroraBackground";
 import FloatingBlobs from "@/components/ui/FloatingBlobs";
 import LiquidEther from "@/components/ui/LiquidEther";
 
-// ─── Analysis logic ────────────────────────────────────────
+// ─── Analysis mapping logic ────────────────────────────────
 interface AnalysisResult {
   threatLevel: "safe" | "warning" | "danger" | "critical";
   score: number;
@@ -19,53 +21,42 @@ interface AnalysisResult {
   summary: string;
 }
 
-const analyzePrompt = (prompt: string): AnalysisResult => {
-  const lower = prompt.toLowerCase();
-  const injectionKeywords = ["ignore previous", "system prompt", "forget instructions", "you are now", "act as", "bypass", "override"];
-  const dataExfil = ["show me the", "reveal", "list all users", "database", "credentials", "password", "api key", "secret"];
-  const jailbreak = ["dan", "jailbreak", "pretend", "roleplay as", "evil mode", "no restrictions"];
-  const manipulation = ["do anything", "no limits", "unfiltered", "uncensored", "without rules"];
+const mapBackendToFrontend = (data: ScanResponse): AnalysisResult => {
+  const { risk_explanation, action } = data;
+  const { risk_score, classification, reasons, attack_types } = risk_explanation;
 
-  const injScore = injectionKeywords.filter(k => lower.includes(k)).length * 25;
-  const exfilScore = dataExfil.filter(k => lower.includes(k)).length * 20;
-  const jailScore = jailbreak.filter(k => lower.includes(k)).length * 30;
-  const manipScore = manipulation.filter(k => lower.includes(k)).length * 20;
-  const totalScore = Math.min(100, injScore + exfilScore + jailScore + manipScore);
-
-  const threatLevel: AnalysisResult["threatLevel"] =
-    totalScore >= 70 ? "critical" : totalScore >= 40 ? "danger" : totalScore >= 15 ? "warning" : "safe";
-
-  const flags: AnalysisResult["flags"] = [];
-  if (injScore > 0) flags.push({ type: "Prompt Injection", severity: injScore > 25 ? "high" : "medium", message: "Detected attempt to override system instructions" });
-  if (exfilScore > 0) flags.push({ type: "Data Exfiltration", severity: exfilScore > 20 ? "high" : "medium", message: "Detected attempt to extract sensitive data" });
-  if (jailScore > 0) flags.push({ type: "Jailbreak Attempt", severity: "high", message: "Detected jailbreak pattern in prompt" });
-  if (manipScore > 0) flags.push({ type: "Manipulation", severity: "medium", message: "Detected social engineering language" });
-  if (flags.length === 0) flags.push({ type: "Clean", severity: "low", message: "No threats detected in this prompt" });
+  const threatLevel: AnalysisResult["threatLevel"] = 
+    risk_score >= 70 ? "critical" : 
+    risk_score >= 40 ? "danger" : 
+    risk_score >= 15 ? "warning" : "safe";
 
   const summaries: Record<string, string> = {
-    safe: "This prompt appears safe. No malicious patterns detected. The content follows standard usage guidelines and poses no security risk.",
-    warning: "Minor risk indicators found. The prompt contains some suspicious patterns that could potentially be used for prompt manipulation.",
-    danger: "Significant threat detected. This prompt contains multiple attack vectors targeting system vulnerabilities. Recommend blocking this input.",
-    critical: "Critical threat level. This prompt is a clear, sophisticated attack attempt combining multiple exploit techniques. Must be blocked immediately.",
+    safe: "This prompt appears safe. No malicious patterns detected. The content follows standard usage guidelines.",
+    warning: "Minor risk indicators found. The prompt contains some suspicious patterns.",
+    danger: "Significant threat detected. This prompt contains attack vectors targeting system vulnerabilities.",
+    critical: "Critical threat level. This prompt is a clear, sophisticated attack attempt. Blocked.",
   };
 
   return {
-    threatLevel, score: totalScore,
+    threatLevel,
+    score: risk_score,
     categories: [
-      { category: "Injection", score: Math.min(100, injScore), fullMark: 100 },
-      { category: "Exfiltration", score: Math.min(100, exfilScore), fullMark: 100 },
-      { category: "Jailbreak", score: Math.min(100, jailScore), fullMark: 100 },
-      { category: "Manipulation", score: Math.min(100, manipScore), fullMark: 100 },
-      { category: "Obfuscation", score: Math.min(100, Math.floor(totalScore * 0.3)), fullMark: 100 },
-      { category: "Social Eng.", score: Math.min(100, Math.floor(totalScore * 0.2)), fullMark: 100 },
+      { category: "Injection", score: attack_types.includes("Prompt Injection") ? risk_score : 10, fullMark: 100 },
+      { category: "Exfiltration", score: attack_types.includes("Data Exfiltration") ? risk_score : 5, fullMark: 100 },
+      { category: "Jailbreak", score: attack_types.includes("Jailbreak Attempt") ? risk_score : 8, fullMark: 100 },
+      { category: "System Link", score: attack_types.includes("System Prompt Leak") ? risk_score : 12, fullMark: 100 },
+      { category: "Policy", score: attack_types.includes("Policy Bypass") ? risk_score : 7, fullMark: 100 },
+      { category: "Social Eng.", score: Math.floor(risk_score * 0.2), fullMark: 100 },
     ],
     breakdown: [
-      { label: "Injection", value: Math.min(100, injScore) },
-      { label: "Exfiltration", value: Math.min(100, exfilScore) },
-      { label: "Jailbreak", value: Math.min(100, jailScore) },
-      { label: "Manipulation", value: Math.min(100, manipScore) },
+      { label: "Risk Score", value: risk_score },
     ],
-    flags, summary: summaries[threatLevel],
+    flags: reasons.map(r => ({
+      type: "Detection Reason",
+      severity: threatLevel === "critical" || threatLevel === "danger" ? "high" : "medium",
+      message: r
+    })),
+    summary: action === "Blocked" ? `BLOCKED: ${summaries[threatLevel]}` : summaries[threatLevel],
   };
 };
 
@@ -198,19 +189,30 @@ const UserAnalyser = () => {
 
   const handleLoadComplete = useCallback(() => setLoading(false), []);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!input.trim() || analyzing) return;
     const userMsg: Message = { id: Date.now().toString(), type: "user", content: input.trim() };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setAnalyzing(true);
 
-    setTimeout(() => {
-      const result = analyzePrompt(userMsg.content);
+    try {
+      const response = await api.scanPrompt({
+        user_id: user?.id || "anonymous",
+        prompt: userMsg.content,
+      });
+      const result = mapBackendToFrontend(response);
       const analysisMsg: Message = { id: (Date.now() + 1).toString(), type: "analysis", content: "", result };
       setMessages(prev => [...prev, analysisMsg]);
+    } catch (error: any) {
+      toast({
+        title: "Security Scan Failed",
+        description: error.message || "Could not connect to IronGuard Security Engine.",
+        variant: "destructive",
+      });
+    } finally {
       setAnalyzing(false);
-    }, 1500);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

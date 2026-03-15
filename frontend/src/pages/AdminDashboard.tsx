@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import CodeLoader from "@/components/ui/CodeLoader";
+import { api, AttackFrequencyData, TopThreatsData, RiskDistributionData } from "@/lib/api";
 import { useUser, useClerk } from "@clerk/clerk-react";
-import { Shield, BarChart3, Users, AlertTriangle, Activity, Settings, FileText, Monitor, LayoutDashboard, TrendingUp, Lock, Eye, Zap, Bell } from "lucide-react";
+import { Shield, BarChart3, Users, AlertTriangle, Activity, Settings, FileText, Monitor, LayoutDashboard, TrendingUp, Lock, Eye, Zap, Bell, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
 import AuroraBackground from "@/components/ui/AuroraBackground";
 import FloatingBlobs from "@/components/ui/FloatingBlobs";
 import LiquidEther from "@/components/ui/LiquidEther";
+import { toast } from "@/hooks/use-toast";
 
 // ─── Glass card wrapper ────────────────────────────────────
 const GlassCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
@@ -139,117 +141,135 @@ const chartTooltipStyle = {
 };
 
 // ─── Dashboard Tab ─────────────────────────────────────────
-const DashboardTab = () => (
-  <div>
-    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      {stats.map((stat, i) => (
-        <motion.div key={stat.label} variants={fadeUp} custom={i} initial="hidden" animate="visible">
-          <GlassCard className="p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-9 w-9 rounded-xl bg-white/[0.05] border border-white/[0.06] flex items-center justify-center">
-                <stat.icon className="h-4 w-4 text-white/60" />
+const DashboardTab = ({ frequencyData, riskDistribution, topThreats }: { 
+  frequencyData: AttackFrequencyData | null, 
+  riskDistribution: RiskDistributionData | null,
+  topThreats: TopThreatsData | null
+}) => {
+  const threatTimelineData = frequencyData ? frequencyData.labels.map((label, idx) => ({
+    time: label,
+    threats: frequencyData.datasets[0].data[idx] + frequencyData.datasets[1].data[idx],
+    blocked: frequencyData.datasets[0].data[idx],
+    safe: 500 + Math.floor(Math.random() * 200) // Mock safe traffic
+  })) : [];
+
+  const threatTypesPie = topThreats ? Object.entries(topThreats).map(([name, value], i) => ({
+    name,
+    value,
+    color: ["#ef4444", "#f97316", "#eab308", "#8b5cf6", "#06b6d4"][i % 5]
+  })) : [];
+
+  return (
+    <div className="space-y-6">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat, i) => (
+          <motion.div key={stat.label} variants={fadeUp} custom={i} initial="hidden" animate="visible">
+            <GlassCard className="p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-9 w-9 rounded-xl bg-white/[0.05] border border-white/[0.06] flex items-center justify-center">
+                  <stat.icon className="h-4 w-4 text-white/60" />
+                </div>
+                <span className="text-[10px] uppercase tracking-wider text-white/25">{stat.label}</span>
               </div>
-              <span className="text-[10px] uppercase tracking-wider text-white/25">{stat.label}</span>
-            </div>
-            <p className="text-3xl font-bold text-white/90 tracking-tight">{stat.value}</p>
-            <p className={`text-xs mt-1 ${stat.changeType === "up" ? "text-green-400/70" : "text-white/25"}`}>{stat.change}</p>
-          </GlassCard>
-        </motion.div>
-      ))}
-    </div>
+              <p className="text-3xl font-bold text-white/90 tracking-tight">{stat.value}</p>
+              <p className={`text-xs mt-1 ${stat.changeType === "up" ? "text-green-400/70" : "text-white/25"}`}>{stat.change}</p>
+            </GlassCard>
+          </motion.div>
+        ))}
+      </div>
 
-    {/* Threat Timeline Chart */}
-    <div className="grid lg:grid-cols-3 gap-4 mb-6">
-      <GlassCard className="p-5 lg:col-span-2">
-        <h2 className="text-sm font-semibold text-white/70 mb-4">Threat Activity Timeline</h2>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={threatTimelineData}>
-            <defs>
-              <linearGradient id="threatGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="safeGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#22c55e" stopOpacity={0.2} />
-                <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-            <XAxis dataKey="time" stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
-            <YAxis stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
-            <Tooltip {...chartTooltipStyle} />
-            <Area type="monotone" dataKey="safe" stroke="#22c55e" fill="url(#safeGrad)" strokeWidth={1.5} />
-            <Area type="monotone" dataKey="threats" stroke="#ef4444" fill="url(#threatGrad)" strokeWidth={2} />
-            <Area type="monotone" dataKey="blocked" stroke="#f97316" fill="none" strokeWidth={1.5} strokeDasharray="4 4" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </GlassCard>
+      <div className="grid lg:grid-cols-3 gap-4">
+        <GlassCard className="p-5 lg:col-span-2">
+          <h2 className="text-sm font-semibold text-white/70 mb-4">Threat Activity Timeline</h2>
+          {threatTimelineData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={threatTimelineData}>
+                <defs>
+                  <linearGradient id="threatGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="safeGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="time" stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
+                <YAxis stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
+                <Tooltip {...chartTooltipStyle} />
+                <Area type="monotone" dataKey="safe" stroke="#22c55e" fill="url(#safeGrad)" strokeWidth={1.5} />
+                <Area type="monotone" dataKey="threats" stroke="#ef4444" fill="url(#threatGrad)" strokeWidth={2} />
+                <Area type="monotone" dataKey="blocked" stroke="#f97316" fill="none" strokeWidth={1.5} strokeDasharray="4 4" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[220px] flex items-center justify-center text-white/20 text-xs">Loading analytics...</div>
+          )}
+        </GlassCard>
 
-      <GlassCard className="p-5">
-        <h2 className="text-sm font-semibold text-white/70 mb-4">Threat Distribution</h2>
-        <ResponsiveContainer width="100%" height={220}>
-          <PieChart>
-            <Pie data={threatTypesPie} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
-              {threatTypesPie.map((entry, index) => (
-                <Cell key={index} fill={entry.color} fillOpacity={0.7} />
-              ))}
-            </Pie>
-            <Tooltip {...chartTooltipStyle} />
-          </PieChart>
-        </ResponsiveContainer>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
-          {threatTypesPie.map((t) => (
-            <div key={t.name} className="flex items-center gap-1.5">
-              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: t.color, opacity: 0.7 }} />
-              <span className="text-[10px] text-white/30">{t.name}</span>
-            </div>
-          ))}
-        </div>
-      </GlassCard>
-    </div>
+        <GlassCard className="p-5">
+          <h2 className="text-sm font-semibold text-white/70 mb-4">Threat Distribution</h2>
+          {threatTypesPie.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={threatTypesPie} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
+                  {threatTypesPie.map((entry, index) => (
+                    <Cell key={index} fill={entry.color} fillOpacity={0.7} />
+                  ))}
+                </Pie>
+                <Tooltip {...chartTooltipStyle} />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[220px] flex items-center justify-center text-white/20 text-xs">Loading analysis...</div>
+          )}
+        </GlassCard>
+      </div>
 
-    <div className="grid lg:grid-cols-2 gap-4">
-      <GlassCard className="p-5">
-        <h2 className="text-sm font-semibold text-white/70 mb-4">Recent Activity</h2>
-        <div className="space-y-1.5 font-mono text-sm">
-          {recentActivity.map((log, i) => (
-            <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-white/[0.03] transition-colors">
-              <span className="text-white/15">[{log.time}]</span>
-              <span className="text-white/40">{log.user}</span>
-              <span className="text-white/10">→</span>
-              <span className={log.type === "safe" ? "text-green-400/80" : log.type === "warning" ? "text-yellow-400/80" : "text-red-400/90"}>
-                {log.status}
-              </span>
-            </div>
-          ))}
-        </div>
-      </GlassCard>
-
-      <GlassCard className="p-5">
-        <h2 className="text-sm font-semibold text-white/70 mb-4">System Status</h2>
-        <div className="space-y-3">
-          {[
-            { label: "Firewall", status: "Active", icon: Shield },
-            { label: "ML Pipeline", status: "Running", icon: Zap },
-            { label: "Threat Intel", status: "Updated", icon: Eye },
-            { label: "DLP Module", status: "Active", icon: Lock },
-          ].map((sys, i) => (
-            <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-              <div className="flex items-center gap-3">
-                <sys.icon className="h-4 w-4 text-white/30" />
-                <span className="text-sm text-white/50">{sys.label}</span>
+      <div className="grid lg:grid-cols-2 gap-4">
+        <GlassCard className="p-5">
+          <h2 className="text-sm font-semibold text-white/70 mb-4">Recent Activity</h2>
+          <div className="space-y-1.5 font-mono text-sm">
+            {recentActivity.map((log, i) => (
+              <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-white/[0.03] transition-colors">
+                <span className="text-white/15">[{log.time}]</span>
+                <span className="text-white/40">{log.user}</span>
+                <span className="text-white/10">→</span>
+                <span className={log.type === "safe" ? "text-green-400/80" : log.type === "warning" ? "text-yellow-400/80" : "text-red-400/90"}>
+                  {log.status}
+                </span>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-xs text-green-400/60 font-mono">{sys.status}</span>
+            ))}
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5">
+          <h2 className="text-sm font-semibold text-white/70 mb-4">System Status</h2>
+          <div className="space-y-3">
+            {[
+              { label: "Firewall", status: "Active", icon: Shield },
+              { label: "ML Pipeline", status: "Running", icon: Zap },
+              { label: "Threat Intel", status: "Updated", icon: Eye },
+              { label: "DLP Module", status: "Active", icon: Lock },
+            ].map((sys, i) => (
+              <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                <div className="flex items-center gap-3">
+                  <sys.icon className="h-4 w-4 text-white/30" />
+                  <span className="text-sm text-white/50">{sys.label}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-xs text-green-400/60 font-mono">{sys.status}</span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </GlassCard>
+            ))}
+          </div>
+        </GlassCard>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ─── Threat Analytics Tab ──────────────────────────────────
 const ThreatAnalyticsTab = () => (
@@ -546,6 +566,35 @@ const AdminDashboard = () => {
   const { signOut } = useClerk();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
+  const [analyticsData, setAnalyticsData] = useState<{
+    frequency: AttackFrequencyData | null;
+    threats: TopThreatsData | null;
+    risk: RiskDistributionData | null;
+  }>({ frequency: null, threats: null, risk: null });
+
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      const [freq, threats, risk] = await Promise.all([
+        api.getAttackFrequency(),
+        api.getTopThreats(),
+        api.getRiskDistribution()
+      ]);
+      setAnalyticsData({ frequency: freq, threats, risk });
+    } catch (error: any) {
+      console.error("Failed to fetch analytics:", error);
+      toast({
+        title: "Analytics Error",
+        description: "Could not fetch latest security data from IronGuard Engine.",
+        variant: "destructive",
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAnalytics();
+    const interval = setInterval(fetchAnalytics, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, [fetchAnalytics]);
 
   // Block browser back navigation
   useEffect(() => {
@@ -588,10 +637,17 @@ const AdminDashboard = () => {
 
       <div className="container mx-auto px-4 py-10 relative z-10">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent">
-            Admin Dashboard
-          </h1>
-          <p className="text-white/30 mb-8">Welcome back, {user?.firstName || "Admin"}.</p>
+          <div className="flex items-end justify-between mb-8">
+            <div>
+              <h1 className="text-4xl font-bold mb-2 bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent">
+                Admin Dashboard
+              </h1>
+              <p className="text-white/30">Welcome back, {user?.firstName || "Admin"}.</p>
+            </div>
+            <Button size="sm" variant="ghost" className="text-[10px] text-white/20 hover:text-white" onClick={fetchAnalytics}>
+              <Activity className="h-3 w-3 mr-2" /> REFRESH LIVE DATA
+            </Button>
+          </div>
         </motion.div>
 
         {/* Tab Navigation */}
@@ -615,7 +671,13 @@ const AdminDashboard = () => {
         {/* Tab Content */}
         <AnimatePresence mode="wait">
           <motion.div key={activeTab} variants={tabContent} initial="hidden" animate="visible" exit="exit">
-            {activeTab === "dashboard" && <DashboardTab />}
+            {activeTab === "dashboard" && (
+              <DashboardTab 
+                frequencyData={analyticsData.frequency} 
+                riskDistribution={analyticsData.risk}
+                topThreats={analyticsData.threats}
+              />
+            )}
             {activeTab === "analytics" && <ThreatAnalyticsTab />}
             {activeTab === "live-monitor" && <LiveMonitorTab />}
             {activeTab === "security-logs" && <SecurityLogsTab />}
