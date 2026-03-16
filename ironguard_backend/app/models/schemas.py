@@ -63,6 +63,8 @@ class ThreatLog(BaseModel):
 
 class UserTrustScore(BaseModel):
     user_id: str
+    email: Optional[str] = None
+    full_name: Optional[str] = None
     role: Role = Role.EMPLOYEE
     trust_score: int = 100
     malicious_attempts: int = 0

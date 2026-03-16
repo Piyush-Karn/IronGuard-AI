@@ -4,7 +4,7 @@ from app.api.auth import RoleChecker
 from app.models.schemas import Role, UserRoleUpdate
 from app.monitoring.user_manager import user_manager
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 # Dependency to ensure only admins can access these routes
 admin_only = Depends(RoleChecker([Role.ADMIN]))
@@ -74,3 +74,46 @@ async def get_user_behavior():
         user["_id"] = str(user["_id"])
         
     return {"at_risk_users": users}
+@router.get("/users", dependencies=[admin_only])
+async def get_users():
+    """
+    Fetch all users and their summarized security stats.
+    """
+    db = get_database()
+    if db is None:
+        return {"users": []}
+
+    # Fetch all trust scores
+    cursor = db.trust_scores.find()
+    users = await cursor.to_list(length=100)
+
+    result = []
+    for user in users:
+        user_id = user.get("user_id")
+        
+        # Aggregate stats for this specific user from threat_logs
+        stats_cursor = db.threat_logs.aggregate([
+            {"$match": {"user_id": user_id}},
+            {"$group": {
+                "_id": "$user_id",
+                "total_checked": {"$sum": 1},
+                "sanitized": {"$sum": {"$cond": [{"$in": ["$action_taken", ["Sanitized", "Passed"]]}, 1, 0]}},
+                "blocked": {"$sum": {"$cond": [{"$eq": ["$action_taken", "Blocked"]}, 1, 0]}},
+            }}
+        ])
+        
+        agg_stats_list = await stats_cursor.to_list(length=1)
+        agg_stats = agg_stats_list[0] if agg_stats_list else {}
+
+        result.append({
+            "user_id": user_id,
+            "role": user.get("role", "employee"),
+            "trust_score": user.get("trust_score", 100),
+            "total_checked": agg_stats.get("total_checked", 0),
+            "sanitized": agg_stats.get("sanitized", 0),
+            "blocked": agg_stats.get("blocked", 0),
+            "email": user.get("email") or (f"{user_id}@ironguard.ai" if "user_" in user_id else "admin@ironguard.ai"),
+            "full_name": user.get("full_name")
+        })
+
+    return {"users": result}

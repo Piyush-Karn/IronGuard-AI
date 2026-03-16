@@ -16,11 +16,16 @@ from app.monitoring.security_logger import security_logger
 router = APIRouter()
 
 @router.get("/auth/me")
-async def get_me(user_id: str = Depends(get_current_user_id)):
+async def get_me(
+    user_id: str = Depends(get_current_user_id),
+    email: Optional[str] = None,
+    full_name: Optional[str] = None
+):
     """
-    Returns the current user's profile and role.
+    Returns the current user's profile and role. 
+    Syncs email and group name if provided.
     """
-    role = await user_manager.get_user_role(user_id)
+    role = await user_manager.get_user_role(user_id, email=email, full_name=full_name)
     return {"user_id": user_id, "role": role}
 
 

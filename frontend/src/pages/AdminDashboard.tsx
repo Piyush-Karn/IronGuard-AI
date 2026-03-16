@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import CodeLoader from "@/components/ui/CodeLoader";
 import { api, AttackFrequencyData, TopThreatsData, RiskDistributionData } from "@/lib/api";
 import { useUser, useClerk } from "@clerk/clerk-react";
@@ -21,6 +22,7 @@ const GlassCard = ({ children, className = "" }: { children: React.ReactNode; cl
 const tabs = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "analytics", label: "Threat Analytics", icon: BarChart3 },
+  { id: "team", label: "Team", icon: Users },
   { id: "live-monitor", label: "Live Monitor", icon: Monitor },
   { id: "security-logs", label: "Security Logs", icon: FileText },
   { id: "settings", label: "Settings", icon: Settings },
@@ -444,6 +446,176 @@ const LiveMonitorTab = () => (
   </div>
 );
 
+// ─── Team Tab (User Management) ──────────────────────────
+const TeamTab = () => {
+  const { user } = useUser();
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const { data: usersData, isLoading } = useQuery({
+    queryKey: ["usersList", user?.id],
+    queryFn: () => api.getUsersList(user?.id || ""),
+    enabled: !!user?.id,
+    refetchInterval: 30000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="h-[400px] flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  const users = usersData?.users || [];
+
+  return (
+    <div className="space-y-6">
+      <GlassCard className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-sm font-semibold text-white/70">Employee Security Overview</h2>
+          <Button size="sm" variant="outline" className="text-[10px] text-white/40 border-white/10">
+            EXPORT CSV
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-white/[0.04] text-[10px] uppercase tracking-wider text-white/20">
+                <th className="py-3 px-4 font-medium">Employee</th>
+                <th className="py-3 px-4 font-medium">Role</th>
+                <th className="py-3 px-4 font-medium">Trust Score</th>
+                <th className="py-3 px-4 font-medium">Total Scans</th>
+                <th className="py-3 px-4 font-medium">Safe/Blocked</th>
+                <th className="py-3 px-4 text-right font-medium">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.02]">
+              {users.map((u, i) => (
+                <motion.tr 
+                  key={u.user_id}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                  className="group hover:bg-white/[0.01] transition-colors"
+                >
+                  <td className="py-4 px-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center text-[10px] font-bold text-white/60">
+                        {(u.full_name || u.email || "U").charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white/80">{u.full_name || u.email.split("@")[0]}</p>
+                        <p className="text-[10px] text-white/20 font-mono">{u.email}</p>
+                        <p className="text-[10px] text-white/10 font-mono">{u.user_id}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-4 px-4 font-mono text-xs">
+                    <span className={`px-2 py-0.5 rounded ${u.role === "admin" ? "bg-blue-500/10 text-blue-400" : "bg-white/5 text-white/40"}`}>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td className="py-4 px-4">
+                    <div className="flex items-center gap-2">
+                       <div className="flex-1 h-1 rounded-full bg-white/[0.05] w-12 overflow-hidden">
+                        <div className={`h-full ${u.trust_score > 80 ? "bg-green-500" : u.trust_score > 50 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${u.trust_score}%` }} />
+                       </div>
+                       <span className="text-xs font-mono text-white/60">{u.trust_score}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-4 font-mono text-xs text-white/40">
+                    {u.total_checked}
+                  </td>
+                  <td className="py-4 px-4">
+                    <div className="flex items-center gap-3 text-[10px] font-mono">
+                      <span className="text-green-500/60">{u.sanitized}</span>
+                      <span className="text-white/10">/</span>
+                      <span className="text-red-500/60">{u.blocked}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 px-4 text-right">
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => setSelectedUser(u)}
+                      className="text-[10px] h-7 text-white/30 hover:text-white hover:bg-white/5"
+                    >
+                      VIEW STATS
+                    </Button>
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </GlassCard>
+
+      <AnimatePresence>
+        {selectedUser && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+            onClick={() => setSelectedUser(null)}
+          >
+            <div 
+              className="w-full max-w-2xl bg-[#0a0a0c] border border-white/10 rounded-3xl overflow-hidden shadow-2xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                   <div className="h-12 w-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                      <Users className="h-6 w-6 text-blue-400" />
+                   </div>
+                   <div>
+                      <h3 className="text-lg font-bold text-white/90">{selectedUser.email.split("@")[0]}'s Security Profile</h3>
+                      <p className="text-xs text-white/20 font-mono">{selectedUser.user_id}</p>
+                   </div>
+                </div>
+                <Button variant="ghost" className="text-white/20 hover:text-white" onClick={() => setSelectedUser(null)}>
+                  CLOSE
+                </Button>
+              </div>
+              <div className="p-8">
+                  {/* Reusing Employee View components implicitly via stats */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                     {[
+                       { label: "Checks", val: selectedUser.total_checked, icon: Activity, color: "text-blue-400" },
+                       { label: "Blocked", val: selectedUser.blocked, icon: Shield, color: "text-red-400" },
+                       { label: "Clean", val: selectedUser.sanitized, icon: Zap, color: "text-green-400" },
+                       { label: "Score", val: selectedUser.trust_score, icon: TrendingUp, color: "text-amber-400" },
+                     ].map((s, i) => (
+                       <div key={i} className="rounded-2xl bg-white/[0.03] border border-white/[0.05] p-4 text-center">
+                          <s.icon className={`h-4 w-4 mx-auto mb-2 ${s.color} opacity-60`} />
+                          <p className="text-xl font-bold text-white/90">{s.val}</p>
+                          <p className="text-[9px] uppercase tracking-tighter text-white/20 mt-1">{s.label}</p>
+                       </div>
+                     ))}
+                  </div>
+
+                  <div className="space-y-4">
+                     <p className="text-[10px] uppercase tracking-widest text-white/20 font-bold mb-2">Detailed Risk Assessment</p>
+                     <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10 flex items-start gap-4">
+                        <AlertTriangle className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs text-red-200/60 font-medium">Threat Level: {selectedUser.trust_score < 40 ? "CRITICAL" : selectedUser.trust_score < 70 ? "MEDIUM" : "LOW"}</p>
+                          <p className="text-[10px] text-white/25 mt-1 leading-relaxed">
+                            Based on manual aggregation, this user has {selectedUser.blocked} security violations. 
+                            {selectedUser.trust_score < 70 ? " Immediate monitoring or policy review is advised." : " No immediate action required."}
+                          </p>
+                        </div>
+                     </div>
+                  </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 // ─── Security Logs Tab ─────────────────────────────────────
 const SecurityLogsTab = () => (
   <div>
@@ -573,11 +745,12 @@ const AdminDashboard = () => {
   }>({ frequency: null, threats: null, risk: null });
 
   const fetchAnalytics = useCallback(async () => {
+    if (!user?.id) return;
     try {
       const [freq, threats, risk] = await Promise.all([
-        api.getAttackFrequency(),
-        api.getTopThreats(),
-        api.getRiskDistribution()
+        api.getAttackFrequency(user.id),
+        api.getTopThreats(user.id),
+        api.getRiskDistribution(user.id)
       ]);
       setAnalyticsData({ frequency: freq, threats, risk });
     } catch (error: any) {
@@ -682,6 +855,7 @@ const AdminDashboard = () => {
               />
             )}
             {activeTab === "analytics" && <ThreatAnalyticsTab />}
+            {activeTab === "team" && <TeamTab />}
             {activeTab === "live-monitor" && <LiveMonitorTab />}
             {activeTab === "security-logs" && <SecurityLogsTab />}
             {activeTab === "settings" && <SettingsTab />}

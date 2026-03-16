@@ -26,7 +26,11 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   
   const { data: roleData, isLoading: isRoleLoading } = useQuery({
     queryKey: ["userRole", user?.id],
-    queryFn: () => api.getUserRole(user?.id || ""),
+    queryFn: () => api.getUserRole(
+      user?.id || "",
+      user?.primaryEmailAddress?.emailAddress,
+      user?.fullName || user?.username || undefined
+    ),
     enabled: isClerkLoaded && !!user,
     retry: false,
   });
@@ -52,7 +56,11 @@ const DashboardRedirect = () => {
   
   const { data: roleData, isLoading: isRoleLoading } = useQuery({
     queryKey: ["userRole", user?.id],
-    queryFn: () => api.getUserRole(user?.id || ""),
+    queryFn: () => api.getUserRole(
+      user?.id || "",
+      user?.primaryEmailAddress?.emailAddress,
+      user?.fullName || user?.username || undefined
+    ),
     enabled: isClerkLoaded && !!user,
     retry: false,
   });

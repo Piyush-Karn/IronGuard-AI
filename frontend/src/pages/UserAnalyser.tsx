@@ -250,7 +250,11 @@ const UserAnalyser = () => {
 
   const { data: roleData } = useQuery({
     queryKey: ["userRole", user?.id],
-    queryFn: () => api.getUserRole(user?.id || ""),
+    queryFn: () => api.getUserRole(
+      user?.id || "",
+      user?.primaryEmailAddress?.emailAddress,
+      user?.fullName || user?.username || undefined
+    ),
     enabled: !!user,
   });
 
