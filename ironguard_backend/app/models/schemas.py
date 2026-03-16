@@ -1,6 +1,11 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
+from enum import Enum
+
+class Role(str, Enum):
+    ADMIN = "admin"
+    EMPLOYEE = "employee"
 
 
 class UserBase(BaseModel):
@@ -14,6 +19,7 @@ class UserCreate(UserBase):
 
 class UserResponse(UserBase):
     id: str
+    role: Role
     created_at: datetime
 
 
@@ -57,9 +63,15 @@ class ThreatLog(BaseModel):
 
 class UserTrustScore(BaseModel):
     user_id: str
+    role: Role = Role.EMPLOYEE
     trust_score: int = 100
     malicious_attempts: int = 0
     last_updated: datetime = Field(default_factory=datetime.utcnow)
+
+
+class UserRoleUpdate(BaseModel):
+    user_id: str
+    role: Role
 
 
 class AttackPattern(BaseModel):

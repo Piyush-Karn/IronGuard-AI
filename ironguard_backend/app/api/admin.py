@@ -1,9 +1,26 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from app.database.mongodb import get_database
+from app.api.auth import RoleChecker
+from app.models.schemas import Role, UserRoleUpdate
+from app.monitoring.user_manager import user_manager
 
-router = APIRouter(prefix="/analytics", tags=["admin"])
+router = APIRouter(prefix="/admin", tags=["admin"])
 
-@router.get("/attack-frequency")
+# Dependency to ensure only admins can access these routes
+admin_only = Depends(RoleChecker([Role.ADMIN]))
+
+@router.post("/assign-role", dependencies=[admin_only])
+async def assign_role(update: UserRoleUpdate):
+    """
+    Assign a role (Admin/Employee) to a user.
+    """
+    success = await user_manager.assign_role(update.user_id, update.role)
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to update role")
+    return {"message": f"Successfully assigned {update.role} to {update.user_id}"}
+
+
+@router.get("/attack-frequency", dependencies=[admin_only])
 async def get_attack_frequency():
     db = get_database()
     if db is None:
@@ -19,7 +36,7 @@ async def get_attack_frequency():
         ]
     }
 
-@router.get("/top-threats")
+@router.get("/top-threats", dependencies=[admin_only])
 async def get_top_threats():
     db = get_database()
     if db is None:
@@ -34,7 +51,7 @@ async def get_top_threats():
         "Data Exfiltration": 5
     }
 
-@router.get("/risk-distribution")
+@router.get("/risk-distribution", dependencies=[admin_only])
 async def get_risk_distribution():
     return {
         "Safe": 75,
@@ -42,7 +59,7 @@ async def get_risk_distribution():
         "Malicious": 10
     }
 
-@router.get("/user-behavior")
+@router.get("/user-behavior", dependencies=[admin_only])
 async def get_user_behavior():
     db = get_database()
     if db is None:

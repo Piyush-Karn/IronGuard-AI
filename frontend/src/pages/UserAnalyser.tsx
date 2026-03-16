@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useUser, useClerk } from "@clerk/clerk-react";
 import CodeLoader from "@/components/ui/CodeLoader";
 import { api, ScanResponse, RiskExplanation } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
-import { Shield, Send, AlertTriangle, CheckCircle, XCircle, ArrowUp, Plus, Lock, BarChart3, Loader2 } from "lucide-react";
+import { Shield, Send, AlertTriangle, CheckCircle, XCircle, ArrowUp, Plus, Lock, BarChart3, Loader2, LayoutDashboard, History, BookOpen, Trophy, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
@@ -151,16 +152,107 @@ const AnalysisCard = ({ result }: { result: AnalysisResult }) => (
   </div>
 );
 
+// ─── Employee Dashboard View ───────────────────────────────
+const EmployeeDashboardView = ({ userId }: { userId: string }) => {
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["userStats", userId],
+    queryFn: () => api.getUserStats(userId),
+    enabled: !!userId,
+    refetchInterval: 10000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  const statCards = [
+    { label: "Prompts Checked", value: stats?.total_checked || 0, icon: History, color: "text-blue-400" },
+    { label: "Clean / Sanitized", value: stats?.sanitized || 0, icon: CheckCircle, color: "text-green-400" },
+    { label: "Blocked Attempts", value: stats?.blocked || 0, icon: AlertTriangle, color: "text-red-400" },
+    { label: "Trust Score", value: stats?.trust_score || 100, icon: Trophy, color: "text-amber-400" },
+  ];
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-8 h-full overflow-y-auto overflow-x-hidden pt-4 custom-scrollbar">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {statCards.map((s, i) => (
+          <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
+            className="rounded-2xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-5 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <s.icon className={`h-4 w-4 ${s.color} mb-3`} />
+            <p className="text-2xl font-bold text-white/90">{s.value}</p>
+            <p className="text-[10px] uppercase tracking-wider text-white/30 mt-1">{s.label}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}
+          className="rounded-2xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-6">
+          <h3 className="text-sm font-bold text-white/70 mb-5 flex items-center gap-2">
+            <BookOpen className="h-4 w-4 text-blue-400" />
+            Prompt Security Guide
+          </h3>
+          <div className="space-y-4">
+            {[
+              { q: "What is Prompt Injection?", a: "Attempting to override system instructions with malicious input (e.g., 'Ignore all previous rules...')." },
+              { q: "What is Data Exfiltration?", a: "Trying to leak system prompts, environment variables, or other users' data." },
+              { q: "What is a Jailbreak?", a: "Using roleplay (like 'DAN') to force the AI to bypass its safety filters." },
+            ].map((item, i) => (
+              <div key={i} className="space-y-1.5 pb-4 border-b border-white/[0.04] last:border-0 last:pb-0">
+                <p className="text-xs font-semibold text-white/60">{item.q}</p>
+                <p className="text-[11px] text-white/30 leading-relaxed">{item.a}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 }}
+          className="rounded-2xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-6">
+          <h3 className="text-sm font-bold text-white/70 mb-5 flex items-center gap-2">
+            <Info className="h-4 w-4 text-amber-400" />
+            Best Practices
+          </h3>
+          <div className="space-y-3">
+            {[
+              "Avoid using phrases that command the AI to 'forget' previous context.",
+              "Do not ask for internal API keys, database schemas, or credentials.",
+              "Use clear, direct instructions without complex roleplay wrappers.",
+              "Be aware that your prompts are scanned for PII and sensitive data.",
+            ].map((tip, i) => (
+              <div key={i} className="flex gap-3 items-start group">
+                <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-blue-500/40 group-hover:bg-blue-400 transition-colors flex-shrink-0" />
+                <p className="text-[11px] text-white/40 group-hover:text-white/60 transition-colors leading-relaxed">{tip}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main component ────────────────────────────────────────
 const UserAnalyser = () => {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const [activeView, setActiveView] = useState<"analyser" | "dashboard">("analyser");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { data: roleData } = useQuery({
+    queryKey: ["userRole", user?.id],
+    queryFn: () => api.getUserRole(user?.id || ""),
+    enabled: !!user,
+  });
 
   // Block browser back navigation
   useEffect(() => {
@@ -248,13 +340,32 @@ const UserAnalyser = () => {
               <Shield className="h-4 w-4 text-white" />
             </div>
             <span className="text-sm font-semibold tracking-tight text-white/80">IronGuard AI</span>
-            {messages.length > 0 && (
+            
+            <div className="ml-6 flex items-center p-1 rounded-lg bg-white/[0.04] border border-white/[0.06]">
+              <button 
+                onClick={() => setActiveView("analyser")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-medium transition-all ${activeView === "analyser" ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white/60"}`}>
+                <History className="h-3 w-3" /> Analyser
+              </button>
+              <button 
+                onClick={() => setActiveView("dashboard")}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-[11px] font-medium transition-all ${activeView === "dashboard" ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white/60"}`}>
+                <LayoutDashboard className="h-3 w-3" /> Dashboard
+              </button>
+            </div>
+
+            {activeView === "analyser" && messages.length > 0 && (
               <button onClick={handleNewChat} className="ml-2 flex items-center gap-1 text-[11px] text-white/30 hover:text-white/60 transition-colors px-2 py-1 rounded-md hover:bg-white/[0.04]">
                 <Plus className="h-3 w-3" /> New
               </button>
             )}
           </div>
           <div className="flex items-center gap-3">
+            {roleData?.role === "admin" && (
+              <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 text-xs h-8" onClick={() => window.location.href = "/admin"}>
+                <Lock className="h-3 w-3 mr-1.5" /> Admin Panel
+              </Button>
+            )}
             <span className="text-xs text-white/30 hidden sm:block">{user?.primaryEmailAddress?.emailAddress}</span>
             <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs h-8" onClick={() => signOut()}>
               Sign Out
@@ -263,9 +374,11 @@ const UserAnalyser = () => {
         </div>
       </nav>
 
-      {/* Messages area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto relative z-10">
-        {isEmpty ? (
+      {/* Messages area or Dashboard */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto relative z-10 custom-scrollbar">
+        {activeView === "dashboard" ? (
+          <EmployeeDashboardView userId={user?.id || ""} />
+        ) : isEmpty ? (
           /* Empty state — Claude-style centered greeting */
           <div className="h-full flex flex-col items-center justify-center px-4">
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="text-center max-w-lg">
@@ -341,35 +454,44 @@ const UserAnalyser = () => {
       </div>
 
       {/* Input area — Claude-style bottom bar */}
-      <div className="relative z-20 flex-shrink-0 pb-4 pt-2 px-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="relative rounded-2xl border border-white/[0.08] bg-black/60 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] transition-all duration-300 focus-within:border-white/[0.15]">
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Paste a prompt to analyze for security threats…"
-              rows={1}
-              className="w-full resize-none bg-transparent text-sm text-white placeholder:text-white/20 px-4 py-3.5 pr-14 outline-none max-h-[200px] leading-relaxed"
-            />
-            <button
-              onClick={handleSubmit}
-              disabled={!input.trim() || analyzing}
-              className={`absolute right-2.5 bottom-2.5 h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                input.trim() && !analyzing
-                  ? "bg-white text-black hover:bg-white/90"
-                  : "bg-white/[0.06] text-white/20 cursor-not-allowed"
-              }`}
-            >
-              <ArrowUp className="h-4 w-4" />
-            </button>
-          </div>
-          <p className="text-center text-[10px] text-white/15 mt-2">
-            IronGuard AI analyses prompts locally for security threats. Press Enter to send.
-          </p>
-        </div>
-      </div>
+      <AnimatePresence>
+        {activeView === "analyser" && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="relative z-20 flex-shrink-0 pb-4 pt-2 px-4"
+          >
+            <div className="max-w-3xl mx-auto">
+              <div className="relative rounded-2xl border border-white/[0.08] bg-black/60 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] transition-all duration-300 focus-within:border-white/[0.15]">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Paste a prompt to analyze for security threats…"
+                  rows={1}
+                  className="w-full resize-none bg-transparent text-sm text-white placeholder:text-white/20 px-4 py-3.5 pr-14 outline-none max-h-[200px] leading-relaxed"
+                />
+                <button
+                  onClick={handleSubmit}
+                  disabled={!input.trim() || analyzing}
+                  className={`absolute right-2.5 bottom-2.5 h-8 w-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
+                    input.trim() && !analyzing
+                      ? "bg-white text-black hover:bg-white/90"
+                      : "bg-white/[0.06] text-white/20 cursor-not-allowed"
+                  }`}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+              </div>
+              <p className="text-center text-[10px] text-white/15 mt-2">
+                IronGuard AI analyses prompts locally for security threats. Press Enter to send.
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

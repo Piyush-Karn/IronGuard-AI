@@ -1,8 +1,11 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 
-from app.models.schemas import PromptRequest, RiskExplanation, ThreatLog, ClassifierOutput
+from app.api.auth import get_current_user_id
+from app.monitoring.user_manager import user_manager
+from app.models.schemas import PromptRequest, RiskExplanation, ThreatLog, ClassifierOutput, Role
+
 from app.services.prompt_processor import prompt_processor
 from app.security_engine.decision import decision_engine
 from app.services.llm_proxy import llm_proxy
@@ -11,6 +14,25 @@ from app.monitoring.user_behavior import user_behavior_monitor
 from app.monitoring.security_logger import security_logger
 
 router = APIRouter()
+
+@router.get("/auth/me")
+async def get_me(user_id: str = Depends(get_current_user_id)):
+    """
+    Returns the current user's profile and role.
+    """
+    role = await user_manager.get_user_role(user_id)
+    return {"user_id": user_id, "role": role}
+
+
+@router.get("/users/me/stats")
+async def get_my_stats(user_id: str = Depends(get_current_user_id)):
+    """
+    Returns personal security statistics for the authenticated user.
+    """
+    stats = await user_manager.get_user_stats(user_id)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Stats not found")
+    return stats
 
 
 class ScanResponse(BaseModel):

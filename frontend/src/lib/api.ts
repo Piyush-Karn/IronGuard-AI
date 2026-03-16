@@ -10,6 +10,19 @@ export interface ScanResponse {
   action: string;
 }
 
+export interface UserRoleResponse {
+  user_id: string;
+  role: "admin" | "employee";
+}
+
+export interface UserStatsResponse {
+  total_checked: number;
+  sanitized: number;
+  blocked: number;
+  trust_score: number;
+  malicious_attempts: number;
+}
+
 export interface PromptRequest {
   user_id: string;
   prompt: string;
@@ -70,6 +83,20 @@ export const api = {
 
   getUserBehavior: () => 
     request<any>("/analytics/user-behavior"),
+
+  getUserRole: (userId: string) =>
+    request<UserRoleResponse>("/auth/me", {
+      headers: {
+        "X-User-Id": userId,
+      },
+    }),
+
+  getUserStats: (userId: string) =>
+    request<UserStatsResponse>("/users/me/stats", {
+      headers: {
+        "X-User-Id": userId,
+      },
+    }),
 
   unblockUser: (userId: string) => 
     request<{status: string, message: string}>("/unblock", {

@@ -627,6 +627,9 @@ const AdminDashboard = () => {
             <span className="text-base font-semibold tracking-tight text-white/90">IronGuard AI — Admin</span>
           </div>
           <div className="flex items-center gap-4">
+            <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 text-xs h-8" onClick={() => window.location.href = "/user/analyser"}>
+              <Eye className="h-3 w-3 mr-1.5" /> User View
+            </Button>
             <span className="text-sm text-white/35">{user?.primaryEmailAddress?.emailAddress}</span>
             <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => signOut()}>
               Sign Out
