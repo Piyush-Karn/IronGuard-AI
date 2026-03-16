@@ -33,7 +33,10 @@ docker-compose exec backend python datasets/init_dataset.py
 - **Swagger Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - `POST /api/v1/scan_prompt`: Evaluates a prompt's risk without sending it to an LLM.
 - `POST /api/v1/process_prompt`: Scans the prompt, sanitizes if suspicious, and forwards it to the configured LLM proxies.
-- `GET /api/v1/analytics/*`: Admin dashboards for attack frequency, top threats, and user behavior.
+- `GET /api/v1/analytics/*`: Global stats on attack frequency, threat types, and risk distribution.
+- `GET /api/v1/analytics/users`: Dedicated **Team Management** view with individual employee security scores and activity tracking.
+- `POST /api/v1/analytics/assign-role`: Administrative RBAC management for assigning roles (Admin/Employee).
+- `GET /api/v1/auth/me`: Dynamic profile synchronization for capturing user names and emails.
 
 ## Technologies Used
 - FastAPI

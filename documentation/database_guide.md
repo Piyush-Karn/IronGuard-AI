@@ -11,9 +11,9 @@ MongoDB is used as the primary database for long-term storage of security events
     - Fields: `timestamp`, `user_id`, `prompt`, `risk_score`, `classification`, `action_taken`, `reasons`, `attack_types`, `classifier_output`.
     - Purpose: Powering the Admin Dashboard analytics and historical audit trails.
 
-2.  **`user_trust_scores`**: Manages the security reputation of unique users.
-    - Fields: `user_id`, `trust_score`, `malicious_attempts`, `last_updated`.
-    - Purpose: Enforcing session termination and tracking behavioral trends.
+2.  **`trust_scores`**: Manages the security reputation and profiles of users.
+    - Fields: `user_id`, `role`, `trust_score`, `email`, `full_name`, `malicious_attempts`, `last_updated`.
+    - Purpose: Tracking behavioral trends, profiles, and enforcing RBAC.
 
 ### Access Layer:
 - Implementation: `app/database/mongodb.py`

@@ -27,10 +27,11 @@ The core of IronGuard is its 3-layer detection engine, which evaluates every inc
 - Implements **Hard Blocks** for critical categories (Violence, Sexual Content, etc.).
 - Decides on the final action: `Pass`, `Sanitize`, or `Block`.
 
-### 3. User Behavior Monitor
-- Tracks user trust scores over time.
-- Automatically termintes sessions for users who repeatedly attempt malicious inputs.
-- Provides an `/unblock` administrative capability.
+### 3. User Behavior Monitor & Identity Sync
+- **Identity Sync**: Automatically captures and synchronizes user profiles (Names, Emails) from Clerk during the authentication handshake.
+- **Trust Scoring**: Tracks user trust scores over time based on the severity of their prompt violations.
+- **Session Enforcement**: Automatically terminates sessions for users who repeatedly attempt malicious inputs.
+- **Role-Based Access Control (RBAC)**: Distinguishes between **Admin** (access to global security analytics and team management) and **Employee** (access to personal stats and analysis tools).
 
 ### 4. Data Layer
 - **MongoDB**: Stores security events, threat logs, and user trust scores.

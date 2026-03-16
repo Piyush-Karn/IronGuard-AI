@@ -38,30 +38,61 @@ The full "production" endpoint. It scans the prompt, sanitizes it if suspicious,
 
 ---
 
-## Administrative API
+## Authentication & Profile API
 
-### `POST /api/v1/unblock`
-Restores a user's trust score and resets their malicious attempt count.
+### `GET /api/v1/auth/me`
+Retrieves the authenticated user's role and synchronizes profile data.
+
+- **Headers**:
+  - `X-User-Id`: The user's unique identifier.
+- **Query Parameters**:
+  - `email` (optional): User's primary email address.
+  - `full_name` (optional): User's display name.
+- **Response**:
+  ```json
+  {
+    "user_id": "user_123",
+    "role": "admin"
+  }
+  ```
+
+---
+
+## Analytics & User Management API
+
+All analytics endpoints require **Admin** privileges and MUST include the `X-User-Id` header.
+
+### `GET /api/v1/analytics/users`
+Retrieves a list of all users with aggregated security statistics.
+
+- **Response**:
+  ```json
+  {
+    "users": [
+      {
+        "user_id": "user_123",
+        "role": "employee",
+        "trust_score": 85,
+        "total_checked": 10,
+        "sanitized": 8,
+        "blocked": 2,
+        "email": "piyush@example.com",
+        "full_name": "Piyush Karn"
+      }
+    ]
+  }
+  ```
+
+### `POST /api/v1/analytics/assign-role`
+Updates a user's role (Admin vs Employee).
 
 - **Request Body**:
   ```json
   {
-    "user_id": "string"
+    "user_id": "string",
+    "role": "admin"
   }
   ```
-- **Response**:
-  ```json
-  {
-    "status": "success",
-    "message": "Trust score restored for user_id_123",
-    "current_state": {
-      "trust_score": 100,
-      "malicious_attempts": 0
-    }
-  }
-  ```
-
-## Analytics API
 
 ### `GET /api/v1/analytics/attack-frequency`
 Returns temporal data on how many attacks were blocked over time.
