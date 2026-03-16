@@ -8,6 +8,16 @@ export interface RiskExplanation {
 export interface ScanResponse {
   risk_explanation: RiskExplanation;
   action: string;
+  llm_response?: string;
+  violation_notes?: any;
+  sanitized_prompt?: string | null;
+  sanitization_info?: {
+    method: string;
+    rules_applied: string[];
+    intent_similarity: number;
+  } | null;
+  fingerprint_match?: boolean;
+  fingerprint_method?: string | null;
 }
 
 export interface UserRoleResponse {
@@ -83,6 +93,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 export const api = {
   scanPrompt: (data: PromptRequest) => 
     request<ScanResponse>("/scan_prompt", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  processPrompt: (data: PromptRequest) =>
+    request<ScanResponse>("/process_prompt", {
       method: "POST",
       body: JSON.stringify(data),
     }),

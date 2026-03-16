@@ -9,6 +9,10 @@ services:
       - MONGO_URL=mongodb://mongodb:27017
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-AIzaSyDV171HM_eOSA_gZGHU8O41Z8ys63aShBo}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-KcQSASdHnTuTj9UHoLXaHufYbcyYnRXS}
+      - RATELIMIT_USER_RPM=20
+      - RATELIMIT_PROVIDER_RPM=60
     depends_on:
       - mongodb
       - chromadb

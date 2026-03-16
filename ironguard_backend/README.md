@@ -1,46 +1,48 @@
-# IronGuard AI Security Firewall
+# IronGuard AI Security Gateway
 
-IronGuard is a security middleware platform that protects AI systems from prompt injection attacks, malicious inputs, and adversarial users. It serves as a security layer between end users and Large Language Models (LLMs).
+IronGuard is a production-grade security firewall that protects AI systems from prompt injection, data leakage, and adversarial inputs. It acts as a hardened proxy between users and Large Language Models (LLMs).
 
-## Architecture
-IronGuard implements a **3-Layer Hybrid Detection Pipeline**:
-1.  **Layer 1: Pattern Detector**: Regex and fuzzy matching (error-tolerant).
-2.  **Layer 2: Semantic Analyzer**: Vector similarity search using ChromaDB (~60k attack vectors).
-3.  **Layer 3: Intent Classifier**: Context-aware AI detection using a dedicated transformer model.
+## Architecture v2
+IronGuard implements a **4-Module Hybrid Architecture** orchestrated for low latency and maximum protection:
 
-For a deep dive into the architecture, see the **[Architecture Documentation](../documentation/architecture.md)**.
+1.  **MOD-1: Real LLM Proxy**: Routes to free providers (**Gemini Flash**, **Mistral**) with rate limiting and security preambles.
+2.  **MOD-2: Response Security**: Scans and redacts API keys, PII, and harm from outgoing LLM responses.
+3.  **MOD-3: Fingerprint Engine**: Sub-ms detection of known jailbreaks using SimHash and MinHash LSH.
+4.  **MOD-4: Semantic Sanitizer**: Neutralizes suspicious prompts while preserving intent using LLM-based rewriting.
+
+For a deep dive, see the **[Architecture Documentation](../documentation/architecture.md)**.
 
 ## Getting Started
 
 ### Prerequisites
 - Docker and Docker Compose
-- Python 3.11+ (if running locally without Docker)
+- API Keys for **Gemini** (Primary) and **Mistral** (Fallback)
 
-### Running with Docker (Recommended)
+### Running with Docker
+1. Create a `.env` file in `ironguard_backend/` and add your keys:
+   ```env
+   GEMINI_API_KEY=your_key
+   MISTRAL_API_KEY=your_key
+   ```
+2. Start the system:
+   ```bash
+   docker compose up --build -d
+   ```
+
+### Initializing the Threat Database
 ```bash
-cd ironguard_backend
-docker-compose up --build
+docker compose exec backend python datasets/init_dataset.py
 ```
 
-### Initializing the Attack Dataset
-Once ChromaDB is running, you can initialize the vector database with sample attack patterns:
-```bash
-docker-compose exec backend python datasets/init_dataset.py
-```
-*(Or simply run `python datasets/init_dataset.py` locally if your environment has the required packages and ChromaDB is accessible).*
+## API Features
+- **Parallel Processing**: Uses `asyncio.gather` for minimal security overhead.
+- **NFKC Normalization**: Protects against homoglyph and encoding-based bypasses.
+- **Explainable Risk Scoring**: Detailed risk breakdowns with primary threat classifications.
+- **Admin Dashboard Integration**: Full support for RBAC-based security monitoring and team management.
 
-### API Endpoints
-- **Swagger Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- `POST /api/v1/scan_prompt`: Evaluates a prompt's risk without sending it to an LLM.
-- `POST /api/v1/process_prompt`: Scans the prompt, sanitizes if suspicious, and forwards it to the configured LLM proxies.
-- `GET /api/v1/analytics/*`: Global stats on attack frequency, threat types, and risk distribution.
-- `GET /api/v1/analytics/users`: Dedicated **Team Management** view with individual employee security scores and activity tracking.
-- `POST /api/v1/analytics/assign-role`: Administrative RBAC management for assigning roles (Admin/Employee).
-- `GET /api/v1/auth/me`: Dynamic profile synchronization for capturing user names and emails.
-
-## Technologies Used
-- FastAPI
-- MongoDB (Motor AsyncIO)
-- ChromaDB
-- SentenceTransformers
-- Pydantic
+## Technologies
+- **FastAPI** (Async Core)
+- **MongoDB** (Persistance)
+- **ChromaDB** (Vector Similarity)
+- **HuggingFace** (Transformer Models)
+- **Mistral/Gemini** (LLM Intelligence)

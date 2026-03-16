@@ -34,10 +34,15 @@ Docker is the preferred way to run IronGuard as it ensures all security models a
 - **Stop system**: `docker compose down`
 
 ### Environment Variables
-Modify the `.env` file in the root or backend directory to configure:
-- `MONGO_URI`: Connection string for MongoDB.
-- `CHROMA_HOST`: Hostname for the ChromaDB container.
-- `OPENAI_API_KEY`: Required if using the LLM Proxy features.
+Modify the `.env` file in the `ironguard_backend` directory to configure the core system:
+- `MONGO_URL`: Connection string for MongoDB (default: `mongodb://localhost:27017`).
+- `CHROMA_HOST`: Hostname for ChromaDB (default: `localhost`).
+- **LLM Proxy Keys (MOD-1)**:
+  - `GEMINI_API_KEY`: Primary provider (Google Gemini Flash).
+  - `MISTRAL_API_KEY`: Fallback provider (Mistral AI).
+- **Rate Limits**:
+  - `RATELIMIT_USER_RPM`: Max requests per minute per user (default: 20).
+  - `RATELIMIT_PROVIDER_RPM`: Max requests per minute per provider (default: 60).
 
 ---
 

@@ -46,6 +46,7 @@ class RiskScorer:
         prompt: str,
         guardrail_results: dict = None,
         classifier_result: ClassifierResult = None,
+        fp_bonus: int = 0,         # MOD-3 fingerprint engine score bonus
     ) -> RiskExplanation:
 
         score = 0
@@ -102,6 +103,12 @@ class RiskScorer:
                 f"Guardrail violation: {guardrail_results.get('reason', 'Unknown')}"
             )
             attack_types.add("Policy Bypass")
+
+        # ── 5. MOD-3 Fingerprint Engine bonus ────────────────────────────────
+        if fp_bonus > 0:
+            score += fp_bonus
+            reasons.append(f"Prompt matches a known jailbreak fingerprint pattern (+{fp_bonus})")
+            attack_types.add("Jailbreak Fingerprint Match")
 
         # ── Classification ────────────────────────────────────────────────────
         if score >= 60:

@@ -10,21 +10,44 @@ from app.api import endpoints, admin
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 1. Connect databases
+    import logging
+    logger = logging.getLogger("ironguard.startup")
+
+    # 1. Databases — always first
     await connect_to_mongo()
     chroma_manager.connect()
+    logger.info("✓ Databases connected")
 
-    # 2. Warm up the intent classifier in background (non-blocking)
+    # 2. Intent Classifier — heavy model, warm up in background (non-blocking)
     from app.threat_detection.intent_classifier import intent_classifier
     asyncio.create_task(intent_classifier.initialize())
+    logger.info("⏳ Intent classifier warming up in background...")
 
-    # 3. Seed ChromaDB attack dataset in background (non-blocking)
+    # 3. MOD-3: Fingerprint Engine — load JSON + construct MinHashLSH
+    #    Must complete before serving (synchronous, ~200ms on cold start)
+    from app.fingerprinting.fingerprint_engine import fingerprint_engine
+    fingerprint_engine._load_db()
+    logger.info(f"✓ Fingerprint engine loaded ({len(fingerprint_engine.simhash_store)} entries)")
+
+    # 4. MOD-2: Response Monitor — verify all regex patterns compiled correctly
+    from app.response_security.response_monitor import response_monitor
+    response_monitor.verify_patterns()
+    logger.info("✓ Response scanner patterns verified")
+
+    # 5. MOD-4: Semantic Sanitizer — initialise (shares encoder with classifier)
+    from app.sanitization.sanitizer import semantic_sanitizer
+    semantic_sanitizer.initialize()
+    logger.info("✓ Semantic sanitizer initialized")
+
+    # 6. Seed ChromaDB attack dataset in background (non-blocking, existing behavior)
     from seed_data.init_dataset import initialize_dataset_background
     asyncio.create_task(initialize_dataset_background())
+    logger.info("⏳ ChromaDB seed task started in background")
 
     yield
 
     await close_mongo_connection()
+    logger.info("IronGuard shutdown complete")
 
 
 app = FastAPI(

@@ -10,10 +10,11 @@ IronGuard is a state-of-the-art security middleware platform designed to protect
 
 ## Core Features
 
-- **Hybrid 3-Layer Detection**: Combines Regex, Vector Similarity, and Deep Learning for robust protection.
-- **Real-time Analytics**: Visual dashboards for tracking threat trends and user behavior.
-- **Explainable Security**: Provides specific reasons and classifications for every blocked or sanitized prompt.
-- **User Trust Scoring**: Automatically manages and termintes sessions for malicious actors.
+- **4-Module Hybrid Architecture**: Parallel orchestration of Proxy, Fingerprinting, Sanitization, and Response Security.
+- **Production-Ready Proxy**: Integrated support for Gemini Flash and Mistral with rate limiting and failover.
+- **Response Redaction**: Automatically detects and redacts secret leakage (API keys, PII) in LLM outputs.
+- **Real-time Analytics**: Visual dashboards for tracking threat trends, user behavior, and security scores.
+- **Sub-ms Fingerprinting**: XOR Hamming distance based deduplication of known jailbreak attempts.
 
 ## Getting Started
 

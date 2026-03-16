@@ -20,10 +20,19 @@ interface AnalysisResult {
   breakdown: { label: string; value: number }[];
   flags: { type: string; severity: string; message: string }[];
   summary: string;
+  llmResponse?: string;
+  sanitizedPrompt?: string | null;
+  sanitizationInfo?: {
+    method: string;
+    rules_applied: string[];
+    intent_similarity: number;
+  } | null;
+  violationNotes?: any;
+  fingerprintMatch?: boolean;
 }
 
 const mapBackendToFrontend = (data: ScanResponse): AnalysisResult => {
-  const { risk_explanation, action } = data;
+  const { risk_explanation, action, llm_response, sanitized_prompt, sanitization_info, violation_notes, fingerprint_match } = data;
   const { risk_score, classification, reasons, attack_types } = risk_explanation;
 
   const threatLevel: AnalysisResult["threatLevel"] = 
@@ -32,10 +41,10 @@ const mapBackendToFrontend = (data: ScanResponse): AnalysisResult => {
     risk_score >= 15 ? "warning" : "safe";
 
   const summaries: Record<string, string> = {
-    safe: "This prompt appears safe. No malicious patterns detected. The content follows standard usage guidelines.",
-    warning: "Minor risk indicators found. The prompt contains some suspicious patterns.",
-    danger: "Significant threat detected. This prompt contains attack vectors targeting system vulnerabilities.",
-    critical: "Critical threat level. This prompt is a clear, sophisticated attack attempt. Blocked.",
+    safe: "This prompt appears safe. No malicious patterns detected.",
+    warning: "Minor risk indicators found. Content was sanitized before LLM processing.",
+    danger: "Significant threat detected. Strict sanitization applied.",
+    critical: "Critical threat level. Request blocked to prevent exploitation.",
   };
 
   return {
@@ -44,7 +53,7 @@ const mapBackendToFrontend = (data: ScanResponse): AnalysisResult => {
     categories: [
       { category: "Injection", score: attack_types.includes("Prompt Injection") ? risk_score : 10, fullMark: 100 },
       { category: "Exfiltration", score: attack_types.includes("Data Exfiltration") ? risk_score : 5, fullMark: 100 },
-      { category: "Jailbreak", score: attack_types.includes("Jailbreak Attempt") ? risk_score : 8, fullMark: 100 },
+      { category: "Jailbreak", score: attack_types.includes("Jailbreak Attempt") || !!fingerprint_match ? risk_score : 8, fullMark: 100 },
       { category: "System Link", score: attack_types.includes("System Prompt Leak") ? risk_score : 12, fullMark: 100 },
       { category: "Policy", score: attack_types.includes("Policy Bypass") ? risk_score : 7, fullMark: 100 },
       { category: "Social Eng.", score: Math.floor(risk_score * 0.2), fullMark: 100 },
@@ -58,6 +67,11 @@ const mapBackendToFrontend = (data: ScanResponse): AnalysisResult => {
       message: r
     })),
     summary: action === "Blocked" ? `BLOCKED: ${summaries[threatLevel]}` : summaries[threatLevel],
+    llmResponse: llm_response,
+    sanitizedPrompt: sanitized_prompt,
+    sanitizationInfo: sanitization_info,
+    violationNotes: violation_notes,
+    fingerprintMatch: fingerprint_match,
   };
 };
 
@@ -93,10 +107,79 @@ const AnalysisCard = ({ result }: { result: AnalysisResult }) => (
             {result.threatLevel === "safe" ? <CheckCircle className="h-3 w-3" style={{ color: threatColors[result.threatLevel] }} /> : <XCircle className="h-3 w-3" style={{ color: threatColors[result.threatLevel] }} />}
             <span className="text-xs font-bold uppercase" style={{ color: threatColors[result.threatLevel] }}>{threatLabels[result.threatLevel]}</span>
           </div>
+          {result.fingerprintMatch && (
+            <div className="px-2 py-1 rounded-full border border-blue-500/40 bg-blue-500/10 text-[9px] font-bold text-blue-400 uppercase">
+              Fingerprint Hit
+            </div>
+          )}
         </div>
         <p className="text-sm text-white/50 leading-relaxed">{result.summary}</p>
       </div>
     </div>
+
+    {/* LLM Response (if present) */}
+    {result.llmResponse && (
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} 
+        className="rounded-xl bg-white/[0.04] border border-white/[0.08] p-5 shadow-inner">
+        <h4 className="text-[10px] uppercase tracking-wider text-white/30 mb-2 flex items-center gap-1.5">
+          <Shield className="h-3 w-3 text-blue-400" /> Secure AI Response
+        </h4>
+        <p className="text-sm text-white/90 leading-relaxed font-light">{result.llmResponse}</p>
+      </motion.div>
+    )}
+
+    {/* Sanitization / Redaction Info */}
+    {(result.sanitizedPrompt || (result.violationNotes && Object.keys(result.violationNotes).length > 0)) && (
+      <div className="grid grid-cols-1 gap-3">
+        {result.sanitizedPrompt && (
+          <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/10">
+            <h5 className="text-[9px] font-bold uppercase text-amber-500/60 mb-1 flex items-center gap-1">
+              <Plus className="h-2.5 w-2.5" /> Prompt Sanitized
+            </h5>
+            <p className="text-[10px] text-white/30 italic mb-2">Harmful framing/PII stripped before processing.</p>
+            
+            {result.sanitizationInfo && (
+              <div className="mb-3 space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {result.sanitizationInfo.rules_applied.map((rule, idx) => (
+                    <span key={idx} className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500/60 text-[8px] font-mono border border-amber-500/20">
+                      RULE: {rule}
+                    </span>
+                  ))}
+                  <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400/60 text-[8px] font-mono border border-blue-500/20">
+                    METHOD: {result.sanitizationInfo.method}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400/60 text-[8px] font-mono border border-purple-500/20">
+                    INTENT SIM: {(result.sanitizationInfo.intent_similarity * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <details className="mt-2">
+              <summary className="text-[9px] text-amber-500/40 cursor-pointer hover:text-amber-500/60 transition-colors uppercase font-bold">View Sanitized Version</summary>
+              <div className="mt-2 p-2 rounded bg-black/40 border border-white/5 text-[10px] text-white/50 font-mono leading-relaxed max-h-32 overflow-y-auto">
+                {result.sanitizedPrompt}
+              </div>
+            </details>
+          </div>
+        )}
+        {result.violationNotes && Object.keys(result.violationNotes).length > 0 && (
+          <div className="p-3 rounded-lg bg-red-500/5 border border-red-500/10">
+            <h5 className="text-[9px] font-bold uppercase text-red-500/60 mb-1 flex items-center gap-1">
+              <Lock className="h-2.5 w-2.5" /> Response Redacted
+            </h5>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(result.violationNotes).map(([type, val]: any, i) => (
+                <span key={i} className="text-[9px] bg-red-500/10 text-red-400/80 px-1.5 py-0.5 rounded border border-red-500/20">
+                  {type}: {Array.isArray(val) ? val.length : 1} items
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    )}
 
     {/* Charts */}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -293,7 +376,7 @@ const UserAnalyser = () => {
     setAnalyzing(true);
 
     try {
-      const response = await api.scanPrompt({
+      const response = await api.processPrompt({
         user_id: user?.id || "anonymous",
         prompt: userMsg.content,
       });

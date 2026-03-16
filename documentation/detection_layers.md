@@ -1,50 +1,41 @@
 # IronGuard Detection Layers
 
-IronGuard uses a **Hybrid Multi-Layer Detection Strategy** to identify and block security threats in real-time. This document deep-dives into each of the three active security layers.
+IronGuard uses a **Hybrid Multi-Layer Detection Strategy** to identify and block security threats in real-time. The pipeline is orchestrated by the Decision Engine v2 for maximum protection and low latency.
+
+## Layer 0: Ingress Normalizer (NFKC)
+The first step for every prompt entering the gateway.
+- **Normalization**: Applies Unicode NFKC (Normalization Form Compatibility Composition) to flatten the text.
+- **Security**: Protects against homoglyph attacks (e.g., using a Cyrillic 'а' instead of 'a'), hidden control characters, and encoding bypasses that aim to slip past regex patterns.
+
+---
 
 ## Layer 1: Pattern Detector (Regex & Fuzzy Match)
-
-The Pattern Detector is the first line of defense. It uses high-speed string matching to catch deterministic attack signatures.
-
-### Key Features:
-- **Comprehensive Regex Library**: Over 150+ regex patterns covering Prompt Injection, System Prompt Leak, Jailbreaks, Malware, Violence, and more.
-- **Fuzzy Matching**: Uses the `rapidfuzz` library to catch permutations and typos (e.g., "Sysem prromt").
-- **Multi-Language Support**: Detection patterns for common injection strings in multiple languages.
-- **Hard Blocks**: Critical categories (like Violence, Weapons, or Sexual Content) are flagged for an immediate 100/100 risk score and blocked without further evaluation.
-
-### Implementation:
-`app/threat_detection/pattern.py`
+Managed by `app/threat_detection/pattern.py`.
+- **Comprehensive Library**: 150+ regex patterns covering Prompt Injection, System Prompt Leak, Jailbreaks, and Maltitude of other categories.
+- **Hard Blocks**: Critical categories (Violence, Sexual Content, etc.) trigger an immediate 100/100 risk score.
 
 ---
 
 ## Layer 2: Semantic Analyzer (Vector Similarity)
-
-The Semantic Analyzer catches contextual attacks that don't match specific strings but share the same *meaning* as previously known attacks.
-
-### Key Features:
-- **Vector Search**: Compares the incoming prompt against a "Threat Gallery" stored in ChromaDB.
-- **High-Volume Dataset**: Initialized with ~60,000 unique attack vectors from Hugging Face (`advbench`, `hh-rlhf`, `JBB-Behaviors`).
-- **Explainable Results**: Returns the `attack_type` of the nearest neighbor to help administrators understand the nature of the threat.
-- **Batched Ingestion**: Uses a safe, batched encoding strategy to initialize the database efficiently during startup.
-
-### Implementation:
-`app/threat_detection/similarity.py`
-`seed_data/init_dataset.py`
+Managed by `app/threat_detection/similarity.py`.
+- **Vector Search**: Compares prompts against a "Threat Gallery" stored in ChromaDB.
+- **High-Volume Dataset**: Initialized with ~60,000 attack vectors (`advbench`, `hh-rlhf`).
 
 ---
 
 ## Layer 3: Intent Classifier (Contextual AI Layer)
+Managed by `app/threat_detection/intent_classifier.py`.
+- **Context Awareness**: A dedicated transformer model (`protectai/deberta-v3-base`) that understands the underlying intent.
+- **Roleplay Detection**: Specifically detects sophisticated jailbreaks that use roleplay framing.
 
-The Intent Classifier is the most advanced layer, using a dedicated transformer model to evaluate the user's underlying intent.
+---
 
-### Key Features:
-- **Deep Contextual Understanding**: Can detect sophisticated "Roleplay" attacks (e.g., "Bob and Alice" scenarios) that might look like harmless stories to simpler layers.
-- **Optimized Performance**: Uses a quantized `deberta-v3-base` model trained explicitly for prompt injection detection.
-- **Async Execution**: Runs in a non-blocking thread so that the event loop remains responsive.
-- **High Sensitivity**: Provides a confidence score (0-100%) that acts as a strong weight in the final risk calculation.
-
-### Implementation:
-`app/threat_detection/intent_classifier.py`
+## Layer 4: Fingerprinting Engine (MOD-3)
+Managed by `app/fingerprinting/`.
+- **Cascade Detection**:
+  - **SimHash**: sub-ms Hamming distance check using XOR bits.
+  - **MinHash LSH**: High-recall overlaps detection.
+- **Fast Match**: Instantly catches known adversarial strings from `fingerprint_db.json`.
 
 ---
 
@@ -52,14 +43,14 @@ The Intent Classifier is the most advanced layer, using a dedicated transformer 
 
 The **Risk Scorer** aggregates signals from all layers into a single score:
 
-| Signal | Weight |
-| :--- | :--- |
-| **Regex Pattern Match** | +60 |
-| **Intent Classifier (Positive)** | +50 |
-| **Semantic Similarity Hit** | +30 |
-| **Guardrail Integration Fail** | +30 |
+| Signal | Weight | Type |
+| :--- | :--- | :--- |
+| **Regex Hard Block** | 100 | Blocking |
+| **Intent Classifier (Positive)** | +50 | Dynamic |
+| **Fingerprint Match (MOD-3)** | +30 | Static |
+| **Semantic Similarity Hit** | +30 | Contextual |
 
 ### Classification Thresholds:
-- **0–29**: `Safe` (Passes directly to LLM).
-- **30–59**: `Suspicious` (Prompt is sanitized before being sent).
-- **60–100**: `Malicious` (Request is blocked immediately).
+- **0–29**: `Safe` (Passes to LLM Proxy).
+- **30–59**: `Suspicious` (Triggers MOD-4 Semantic Sanitization).
+- **60–100**: `Malicious` (Blocked immediately).
