@@ -56,7 +56,8 @@ const mapBackendToFrontend = (data: ScanResponse): AnalysisResult => {
       { category: "Jailbreak", score: attack_types.includes("Jailbreak Attempt") || !!fingerprint_match ? risk_score : 8, fullMark: 100 },
       { category: "System Link", score: attack_types.includes("System Prompt Leak") ? risk_score : 12, fullMark: 100 },
       { category: "Policy", score: attack_types.includes("Policy Bypass") ? risk_score : 7, fullMark: 100 },
-      { category: "Social Eng.", score: Math.floor(risk_score * 0.2), fullMark: 100 },
+      { category: "Fin. Crime", score: attack_types.includes("Financial Crime / Tax Evasion") ? risk_score : 5, fullMark: 100 },
+      { category: "PII/Privacy", score: attack_types.includes("Personal Information") ? risk_score : 4, fullMark: 100 },
     ],
     breakdown: [
       { label: "Risk Score", value: risk_score },
@@ -378,6 +379,7 @@ const UserAnalyser = () => {
     try {
       const response = await api.processPrompt({
         user_id: user?.id || "anonymous",
+        user_email: user?.primaryEmailAddress?.emailAddress || undefined,
         prompt: userMsg.content,
       });
       const result = mapBackendToFrontend(response);
@@ -453,7 +455,10 @@ const UserAnalyser = () => {
                 <Lock className="h-3 w-3 mr-1.5" /> Admin Panel
               </Button>
             )}
-            <span className="text-xs text-white/30 hidden sm:block">{user?.primaryEmailAddress?.emailAddress}</span>
+            <div className="hidden sm:flex items-center gap-3 mr-4">
+              <span className="text-[10px] text-white/20 font-mono tracking-tighter bg-white/[0.03] px-2 py-0.5 rounded border border-white/[0.05]">{user?.id}</span>
+              <span className="text-xs text-white/40 font-medium">{user?.primaryEmailAddress?.emailAddress}</span>
+            </div>
             <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-500/10 text-xs h-8" onClick={() => signOut()}>
               Sign Out
             </Button>

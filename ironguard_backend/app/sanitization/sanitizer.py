@@ -21,6 +21,7 @@ from typing import Literal, Optional
 import httpx
 
 from app.sanitization.strip_patterns import strip_jailbreak_framing
+from app.sanitization.pii_redactor import redact_pii
 
 logger = logging.getLogger(__name__)
 
@@ -72,75 +73,44 @@ class SemanticSanitizer:
         Main sanitization entry point.
         Always tries regex-only first. Falls back to LLM rewrite only if
         regex-only result still looks suspicious OR strips too aggressively.
+        Final output always passes through PII redaction.
         """
-        # ── Fast path: Regex stripping ──────────────────────────────────────
+        # ── 1. Fast path: Regex stripping ───────────────────────────────────
         stripped, rules_applied = strip_jailbreak_framing(prompt)
-
-        # If strip removed basically everything, that's unsanitizable
-        if len(stripped.strip()) < 10:
-            return SanitizationResult(
-                sanitized_prompt=prompt,
-                method="unsanitizable",
-                original_intent_preserved=False,
-                intent_similarity_score=0.0,
-                action="block",
-                rules_applied=rules_applied,
-            )
-
+        
         # Check intent preservation for regex-only result
         similarity = await self._cosine_similarity(prompt, stripped)
+        final_prompt = stripped
+        method: Literal["regex_only", "llm_rewrite", "unsanitizable"] = "regex_only"
 
-        if similarity >= INTENT_SIMILARITY_THRESHOLD or rules_applied:
-            # Regex-only result is good — check if we should still try LLM rewrite
-            if self._openai_api_key and similarity >= 0.3:
-                # Try LLM rewrite with timeout
-                llm_result = await self._llm_rewrite_with_timeout(stripped)
-                if llm_result and llm_result != "UNSANITIZABLE":
-                    llm_similarity = await self._cosine_similarity(prompt, llm_result)
-                    if llm_similarity >= INTENT_SIMILARITY_THRESHOLD:
-                        return SanitizationResult(
-                            sanitized_prompt=llm_result,
-                            method="llm_rewrite",
-                            original_intent_preserved=True,
-                            intent_similarity_score=round(llm_similarity, 4),
-                            action="proceed",
-                            rules_applied=rules_applied,
-                        )
+        # ── 2. Decide if LLM rewrite is needed ──────────────────────────────
+        needs_rewrite = (similarity < INTENT_SIMILARITY_THRESHOLD and self._openai_api_key) or \
+                        (self._openai_api_key and similarity >= 0.3)
 
-            # Use regex-only result
-            return SanitizationResult(
-                sanitized_prompt=stripped,
-                method="regex_only",
-                original_intent_preserved=similarity >= INTENT_SIMILARITY_THRESHOLD,
-                intent_similarity_score=round(similarity, 4),
-                action="proceed" if similarity >= INTENT_SIMILARITY_THRESHOLD else "block",
-                rules_applied=rules_applied,
-            )
-        else:
-            # Regex stripped too aggressively — try LLM rewrite on original
-            if self._openai_api_key:
-                llm_result = await self._llm_rewrite_with_timeout(prompt)
-                if llm_result and llm_result != "UNSANITIZABLE":
-                    llm_similarity = await self._cosine_similarity(prompt, llm_result)
-                    if llm_similarity >= INTENT_SIMILARITY_THRESHOLD:
-                        return SanitizationResult(
-                            sanitized_prompt=llm_result,
-                            method="llm_rewrite",
-                            original_intent_preserved=True,
-                            intent_similarity_score=round(llm_similarity, 4),
-                            action="proceed",
-                            rules_applied=rules_applied,
-                        )
+        if needs_rewrite:
+            llm_result = await self._llm_rewrite_with_timeout(stripped if rules_applied else prompt)
+            if llm_result and llm_result != "UNSANITIZABLE":
+                llm_similarity = await self._cosine_similarity(prompt, llm_result)
+                if llm_similarity >= INTENT_SIMILARITY_THRESHOLD:
+                    final_prompt = llm_result
+                    method = "llm_rewrite"
+                    similarity = llm_similarity
 
-            # Both paths failed — escalate to block
-            return SanitizationResult(
-                sanitized_prompt=prompt,
-                method="unsanitizable",
-                original_intent_preserved=False,
-                intent_similarity_score=round(similarity, 4),
-                action="block",
-                rules_applied=rules_applied,
-            )
+        # ── 3. Final PII Redaction Pass (Always Runs) ───────────────────────
+        redacted, pii_rules = redact_pii(final_prompt)
+        rules_applied.extend(pii_rules)
+
+        # ── 4. Verify & Return ──────────────────────────────────────────────
+        is_preserved = similarity >= INTENT_SIMILARITY_THRESHOLD
+        
+        return SanitizationResult(
+            sanitized_prompt=redacted,
+            method=method if is_preserved else "unsanitizable",
+            original_intent_preserved=is_preserved,
+            intent_similarity_score=round(similarity, 4),
+            action="proceed" if is_preserved else "block",
+            rules_applied=rules_applied,
+        )
 
     async def _cosine_similarity(self, text_a: str, text_b: str) -> float:
         """Compute cosine similarity using shared encoder. Returns 1.0 if encoder not available."""

@@ -35,6 +35,7 @@ export interface UserStatsResponse {
 
 export interface PromptRequest {
   user_id: string;
+  user_email?: string;
   prompt: string;
   conversation_id?: string;
 }

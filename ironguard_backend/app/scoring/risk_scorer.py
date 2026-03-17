@@ -29,6 +29,7 @@ HARD_BLOCK_CATEGORIES = {
     "Drug Synthesis",
     "Self Harm / Suicide",
     "Terrorism / Extremism",
+    "Financial Crime / Tax Evasion",
 }
 
 
@@ -37,7 +38,7 @@ class RiskScorer:
         self.weights = {
             "pattern_match":     60,
             "vector_similarity": 30,
-            "classifier_intent": 50,
+            "classifier_intent": 60,  # Increased weight: Malicious intent = Auto-BLOCK
             "guardrail_fail":    30,
         }
 
@@ -67,7 +68,12 @@ class RiskScorer:
                     attack_types=pat_types,
                 )
 
-            score += self.weights["pattern_match"]
+            # Special case for PII: Use lower weight so it triggers Sanitization, not Block
+            if len(pat_types) == 1 and list(pat_types)[0] == "Personal Information":
+                score += 30
+            else:
+                score += self.weights["pattern_match"]
+            
             reasons.extend(pat_reasons)
             attack_types.update(pat_types)
 

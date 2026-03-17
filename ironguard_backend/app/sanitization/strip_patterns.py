@@ -33,6 +33,16 @@ STRIP_RULES: list[StripRule] = [
         "",
     ),
     StripRule(
+        "if_you_were_to_be",
+        re.compile(r"(?i)if\s+you\s+(were\s+to\s+be|could\s+be|are)\s+(a\s+)?[\w\s]{3,25}(who|that|and)[\s,\.]*", re.DOTALL),
+        "",
+    ),
+    StripRule(
+        "assume_identity",
+        re.compile(r"(?i)(assume|take\s+on|adopt)\s+(any|the)\s+(identity|persona|role)[\s,\.]*"),
+        "",
+    ),
+    StripRule(
         "enter_mode",
         re.compile(r"(?i)(enter|enable|activate|switch\s+to)\s+(developer|unrestricted|jailbreak|dan|god)\s+mode[\s,\.]*"),
         "",

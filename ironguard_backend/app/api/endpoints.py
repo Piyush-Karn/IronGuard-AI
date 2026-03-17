@@ -93,6 +93,7 @@ async def scan_prompt(request: PromptRequest, req: Request):
     # 6. Log event (now includes classifier + fingerprint data)
     threat_log = ThreatLog(
         user_id=request.user_id,
+        user_email=request.user_email,
         prompt=request.prompt,
         risk_score=risk_explanation.risk_score,
         classification=risk_explanation.classification,
@@ -148,6 +149,7 @@ async def process_prompt(request: PromptRequest, req: Request):
     if action == "Blocked":
         threat_log = ThreatLog(
             user_id=request.user_id,
+            user_email=request.user_email,
             prompt=request.prompt,
             risk_score=risk_explanation.risk_score,
             classification=risk_explanation.classification,
@@ -208,6 +210,7 @@ async def process_prompt(request: PromptRequest, req: Request):
 
     threat_log = ThreatLog(
         user_id=request.user_id,
+        user_email=request.user_email,
         prompt=request.prompt,
         risk_score=risk_explanation.risk_score,
         classification=risk_explanation.classification,

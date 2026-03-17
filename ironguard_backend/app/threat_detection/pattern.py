@@ -233,6 +233,30 @@ class PatternDetector:
                 r"(?i)(without\s*(their|someone\'?s?)\s*(knowledge|consent|permission))\s*(track|monitor|spy|watch|record)",
                 r"(?i)(hack\s*into|access\s*without\s*permission)\s*(someone\'?s?|their|a\s*person\'?s?)\s*(email|account|phone|device|camera)",
             ],
+            # ── Financial Crime / Tax Evasion ────────────────────────────────
+            "Financial Crime / Tax Evasion": [
+                r"(?i)(evade|bypass|minimize|lower|escape)\s*(taxes|tax\s*burden|tax\s*liability)",
+                r"(?i)(false|fake|synthetic|stolen)\s*identit(y|ies)\s*for\s*(tax|financial)",
+                r"(?i)(offshore|shell|front)\s*(company|account)\s*to\s*(hide|evade|launder)",
+                r"(?i)(wash|launder)\s*(money|funds|cryptocurrency|crypto|proceeds)",
+                r"(?i)(insider\s*trading|market\s*manipulation|stock\s*fraud)",
+                r"(?i)(ponzi|pyramid)\s*scheme\s*(setup|creation|management)",
+            ],
+            # ── Personal Information (PII) ───────────────────────────────────
+            "Personal Information": [
+                # Direct email
+                r"[a-zA-Z0-9_.+\-]+@[a-zA-Z0-9\-]+\.[a-zA-Z0-9.\-]+",
+                # Obfuscated email: user[at]example[dot]com, user (at) example (dot) com
+                r"[a-zA-Z0-9_.+\-]+\s*(?:\[at\]|\(at\)|\{at\})\s*[a-zA-Z0-9\-]+\s*(?:\[dot\]|\(dot\)|\{dot\})\s*[a-zA-Z0-9.\-]+",
+                # Obfuscated email: user at example dot com (spaced)
+                r"[a-zA-Z0-9_.+\-]+\s+at\s+[a-zA-Z0-9\-]+\s+dot\s+[a-zA-Z0-9.\-]+",
+                # Improved phone numbers: varied spacing, dashes, international
+                r"(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3,5}\)?[-.\s]?)?\d{3,5}[-.\s]?\d{4,6}",
+                # Financial/ID keywords
+                r"(?i)\b(ssn|social[\s-]security|passport\s*number|credit[\s-]card|cvv|expiry\s*date|pan\s*card|aadhaar|aadhar)\b",
+                # Word-form digits (8+ consecutive) — phone number obfuscation
+                r"(?i)\b(?:(?:zero|one|two|three|four|five|six|seven|eight|nine|oh)\b[\s\-,.]*){8,}",
+            ],
         }
 
         # ── Fuzzy match targets ────────────────────────────────────────────────

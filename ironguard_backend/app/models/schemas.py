@@ -26,6 +26,7 @@ class UserResponse(UserBase):
 class PromptRequest(BaseModel):
     user_id: str
     prompt: str
+    user_email: Optional[str] = None
     conversation_id: Optional[str] = None
 
 
@@ -51,6 +52,7 @@ class ClassifierOutput(BaseModel):
 class ThreatLog(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     user_id: str
+    user_email: Optional[str] = None
     prompt: str
     risk_score: int
     classification: str
@@ -58,7 +60,7 @@ class ThreatLog(BaseModel):
     ip_address: Optional[str] = None
     reasons: List[str]
     attack_types: List[str]
-    classifier_output: Optional[ClassifierOutput] = None   # ← NEW
+    classifier_output: Optional[ClassifierOutput] = None
 
 
 class UserTrustScore(BaseModel):
