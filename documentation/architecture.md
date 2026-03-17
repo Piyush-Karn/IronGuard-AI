@@ -44,26 +44,31 @@ IronGuard is organized into four primary modules:
 
 ```mermaid
 graph TD
-    User([User Prompt]) --> Norm[NFKC Normalization]
-    Norm --> Pipeline[Parallel Detection Pipeline]
-    
-    subgraph Pipeline
-        L1[Layer 1: Pattern Detector]
-        L2[Layer 2: Semantic Analyzer]
-        L3[Layer 3: Intent Classifier]
-        L4[Layer 4: MOD-3 Fingerprinting]
-    end
-    
-    Pipeline --> Scorer[Risk Scorer]
-    Scorer --> Decision{Decision Engine}
-    
-    Decision -- Blocked --> Log[Log Threat] --> Reject[Block Message]
-    Decision -- Suspicious --> Sanitizer[MOD-4: Sanitizer] --> Proxy
-    Decision -- Passed --> Proxy[MOD-1: LLM Proxy]
-    
-    Proxy --> LLM[External LLM]
-    LLM --> Monitor[MOD-2: Response Monitor]
-    Monitor --> Output([Final Output])
+    A[User Prompt] --> B[NFKC Normalization]
+
+    B --> C[Parallel Detection Pipeline]
+
+    C --> C1[Layer 1: Pattern Detector]
+    C --> C2[Layer 2: Semantic Analyzer]
+    C --> C3[Layer 3: Intent Classifier]
+    C --> C4[Layer 4: MOD-3 Fingerprinting]
+
+    C1 --> D[Risk Scorer]
+    C2 --> D
+    C3 --> D
+    C4 --> D
+
+    D --> E{Decision Engine v2}
+
+    E -->|Malicious| F[Block and Log Threat]
+    E -->|Suspicious| G[MOD-4 Semantic Sanitizer]
+    E -->|Safe| H[MOD-1 LLM Proxy]
+
+    G --> H
+
+    H --> I[External LLM]
+    I --> J[MOD-2 Response Monitor]
+    J --> K[Final Output]
 ```
 
 ## Security Rationale: Defense in Depth

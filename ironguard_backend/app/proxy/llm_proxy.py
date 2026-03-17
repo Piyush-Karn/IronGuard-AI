@@ -203,9 +203,12 @@ class LLMProxy:
         if isinstance(result, ProxyError):
             return result
 
-        result.latency_ms = latency_ms
-        result.request_id = request_id
-        return result
+        # Double-check and cast to ensure no coroutine leakage
+        from typing import cast
+        response = cast(ProxyResponse, result)
+        response.latency_ms = latency_ms
+        response.request_id = request_id
+        return response
 
     async def _call_with_retry(self, provider, prompt, max_tokens, temperature, request_id):
         for attempt in range(MAX_RETRIES):
