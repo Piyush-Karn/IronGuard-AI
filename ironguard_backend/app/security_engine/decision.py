@@ -51,13 +51,15 @@ def normalize_prompt(prompt: str) -> str:
 
 
 class DecisionEngineV2:
+    def __init__(self):
+        self._learning_lock = asyncio.Lock()
 
     async def evaluate_request(
         self,
         prompt: str,
         user_id: str = "anonymous",      # NEW
         session_id: Optional[str] = None, # NEW
-    ) -> Tuple[RiskExplanation, str, ClassifierResult, FingerprintResult, SanitizationResult | None]:
+    ) -> Tuple[str, RiskExplanation, str, ClassifierResult, FingerprintResult, SanitizationResult | None]:
         """
         Fully async evaluation. Returns:
           - RiskExplanation  (score, classification, reasons, attack_types)
@@ -73,26 +75,23 @@ class DecisionEngineV2:
         # ── 0.1 Context Prefetch (Feature 1) ──────────────────────────────────
         from app.context.context_builder import context_builder
         context_bonus = 0
+        detection_prompt = prompt  # Fix 3: keep original for forwarding
         if session_id:
             try:
-                prompt, context_bonus = await context_builder.build_context_prompt(session_id, prompt)
+                detection_prompt, context_bonus = await context_builder.build_context_prompt(session_id, prompt)
             except Exception as e:
                 logger.warning(f"Context prefetch failed (degrading): {e}")
 
-        # ── 0.2 Learning Lock (Feature 2) ─────────────────────────────────────
-        if not hasattr(self, "_learning_lock"):
-            self._learning_lock = asyncio.Lock()
-
         # ── 1. Guardrails (sync, fast) ────────────────────────────────────────
-        guardrail_result = guardrail_orchestrator.run_all(prompt)
+        guardrail_result = guardrail_orchestrator.run_all(detection_prompt)
 
         # ── 2. Parallel Detection (all signals concurrently) ──────────────────
         from app.threat_detection.similarity import similarity_detector
         loop = asyncio.get_event_loop()
         
-        fp_task = fingerprint_engine.check(prompt)
-        clf_task = intent_classifier.classify(prompt)
-        sim_task = loop.run_in_executor(None, similarity_detector.detect, prompt) # BUG-6 fix
+        fp_task = fingerprint_engine.check(detection_prompt)
+        clf_task = intent_classifier.classify(detection_prompt)
+        sim_task = loop.run_in_executor(None, similarity_detector.detect, detection_prompt) # BUG-6 fix
 
         fp_result, classifier_result, sim_result = await asyncio.gather(
             fp_task,
@@ -122,7 +121,7 @@ class DecisionEngineV2:
 
         # ── 3. Risk Scoring ───────────────────────────────────────────────────
         risk_explanation = risk_scorer.calculate_risk(
-            prompt,
+            detection_prompt,
             sim_result=sim_result if not isinstance(sim_result, Exception) else None,
             guardrail_results=guardrail_result,
             classifier_result=classifier_result,
@@ -166,9 +165,9 @@ class DecisionEngineV2:
         raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
         if raw_detection_score >= 60 and not fp_result.is_match:
             # Async background learning
-            asyncio.create_task(self.maybe_learn(prompt))
+            asyncio.create_task(self.maybe_learn(detection_prompt))
 
-        return risk_explanation, action, classifier_result, fp_result, sanitization_result
+        return prompt, risk_explanation, action, classifier_result, fp_result, sanitization_result
 
     async def maybe_learn(self, prompt: str):
         """
@@ -186,13 +185,16 @@ class DecisionEngineV2:
                     data = {"jailbreaks": []}
 
                 # 2. Check for duplicates (simple string match)
-                text = prompt.lower().strip()
+                from app.sanitization.pii_redactor import redact_pii
+                canonical, _ = redact_pii(prompt)  # Fix 1: strip PII before storing
+                
+                text = canonical.lower().strip()
                 if any(j.get("canonical_form", "").lower().strip() == text for j in data["jailbreaks"]):
                     return
 
                 # 3. Add new threat
                 data["jailbreaks"].append({
-                    "canonical_form": prompt,
+                    "canonical_form": canonical,
                     "description": "Autonomously learned high-confidence threat",
                     "attack_type": "Learned"
                 })

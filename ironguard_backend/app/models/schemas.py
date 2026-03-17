@@ -32,6 +32,7 @@ class PromptRequest(BaseModel):
 
 class RiskExplanation(BaseModel):
     risk_score: int
+    base_risk_score: int = 0
     classification: str   # Safe | Suspicious | Malicious
     reasons: List[str]
     attack_types: List[str]

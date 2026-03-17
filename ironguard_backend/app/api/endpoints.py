@@ -73,8 +73,8 @@ async def scan_prompt(request: PromptRequest, req: Request):
         )
 
 
-    # 3. Full hybrid evaluation — v2 returns 5 values
-    risk_explanation, action, classifier_result, fp_result, sanitization_result = \
+    # 3. Full hybrid evaluation — v3 returns 6 values
+    norm_prompt, risk_explanation, action, classifier_result, fp_result, sanitization_result = \
         await decision_engine.evaluate_request(
             request.prompt,
             user_id=request.user_id,
@@ -102,7 +102,6 @@ async def scan_prompt(request: PromptRequest, req: Request):
     )
 
     # 6. Log event (now includes classifier + fingerprint data)
-    raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
     threat_log = ThreatLog(
         user_id=request.user_id,
         user_email=request.user_email,
@@ -113,12 +112,10 @@ async def scan_prompt(request: PromptRequest, req: Request):
         ip_address=ip_address,
         reasons=risk_explanation.reasons,
         attack_types=risk_explanation.attack_types,
-        raw_detection_score=raw_detection_score,
+        raw_detection_score=risk_explanation.base_risk_score,
         classifier_output=classifier_output,
     )
     await security_logger.log_event(threat_log)
-
-    raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus # base detection signal
 
     return ScanResponse(
         risk_explanation=risk_explanation,
@@ -126,7 +123,7 @@ async def scan_prompt(request: PromptRequest, req: Request):
         classifier_output=classifier_output,
         fingerprint_match=fp_result.is_match,
         fingerprint_method=fp_result.method_used if fp_result.is_match else None,
-        raw_detection_score=raw_detection_score
+        raw_detection_score=risk_explanation.base_risk_score
     )
 
 
@@ -143,7 +140,7 @@ async def process_prompt(request: PromptRequest, req: Request):
 
 
     # 3. Full evaluation (v2 decision engine)
-    risk_explanation, action, classifier_result, fp_result, sanitization_result = \
+    norm_prompt, risk_explanation, action, classifier_result, fp_result, sanitization_result = \
         await decision_engine.evaluate_request(
             request.prompt,
             user_id=request.user_id,
@@ -172,7 +169,6 @@ async def process_prompt(request: PromptRequest, req: Request):
 
     # 6. If blocked — return immediately, no LLM call
     if action == "Blocked":
-        raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
         threat_log = ThreatLog(
             user_id=request.user_id,
             user_email=request.user_email,
@@ -183,7 +179,7 @@ async def process_prompt(request: PromptRequest, req: Request):
             ip_address=ip_address,
             reasons=risk_explanation.reasons,
             attack_types=risk_explanation.attack_types,
-            raw_detection_score=raw_detection_score,
+            raw_detection_score=risk_explanation.base_risk_score,
             classifier_output=classifier_output,
         )
         await security_logger.log_event(threat_log)
@@ -193,6 +189,7 @@ async def process_prompt(request: PromptRequest, req: Request):
             classifier_output=classifier_output,
             violation_notes=["Request blocked by IronGuard Security Engine."],
             fingerprint_match=fp_result.is_match,
+            raw_detection_score=risk_explanation.base_risk_score,
         )
 
     # 7. Determine final prompt to forward
@@ -201,7 +198,7 @@ async def process_prompt(request: PromptRequest, req: Request):
     if action == "Sanitized" and sanitization_result and sanitization_result.sanitized_prompt:
         final_prompt = sanitization_result.sanitized_prompt
     else:
-        final_prompt = request.prompt
+        final_prompt = norm_prompt
 
     # 8. Forward to real LLM proxy
     proxy_result = await llm_proxy.route_request(
@@ -235,7 +232,6 @@ async def process_prompt(request: PromptRequest, req: Request):
         violations_for_log = [f"{v.type}: {v.matched_pattern}" for v in scan_result.violations]
         final_response_text = scan_result.redacted_text or llm_response_text
 
-    raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
     threat_log = ThreatLog(
         user_id=request.user_id,
         user_email=request.user_email,
@@ -246,12 +242,10 @@ async def process_prompt(request: PromptRequest, req: Request):
         ip_address=ip_address,
         reasons=risk_explanation.reasons,
         attack_types=risk_explanation.attack_types,
-        raw_detection_score=raw_detection_score,
+        raw_detection_score=risk_explanation.base_risk_score,
         classifier_output=classifier_output,
     )
     await security_logger.log_event(threat_log)
-
-    raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
 
     return ProcessedResponse(
         risk_explanation=risk_explanation,
@@ -266,7 +260,7 @@ async def process_prompt(request: PromptRequest, req: Request):
             "intent_similarity": sanitization_result.intent_similarity_score,
         } if action == "Sanitized" and sanitization_result else None,
         fingerprint_match=fp_result.is_match,
-        raw_detection_score=raw_detection_score
+        raw_detection_score=risk_explanation.base_risk_score
     )
 
 

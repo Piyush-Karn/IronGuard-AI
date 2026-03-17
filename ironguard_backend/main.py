@@ -16,7 +16,16 @@ async def lifespan(app: FastAPI):
     # 1. Databases — always first
     await connect_to_mongo()
     chroma_manager.connect()
-    logger.info("✓ Databases connected")
+    
+    # Add MongoDB indexes (Fix 5)
+    from app.database.mongodb import get_database
+    db = get_database()
+    if db is not None:
+        await db.threat_logs.create_index([("user_id", 1), ("timestamp", -1)])
+        await db.sessions.create_index([("session_id", 1)])
+        await db.sessions.create_index([("last_updated", 1)], expireAfterSeconds=86400)
+    
+    logger.info("✓ Databases connected + Indexes created")
 
     # 2. Intent Classifier — heavy model, warm up in background (non-blocking)
     from app.threat_detection.intent_classifier import intent_classifier

@@ -18,7 +18,6 @@ Hard block categories (instant score 100, always blocked):
 
 from app.models.schemas import RiskExplanation
 from app.threat_detection.pattern import pattern_detector
-from app.threat_detection.similarity import similarity_detector
 from app.threat_detection.intent_classifier import ClassifierResult
 
 # These categories skip scoring entirely — always return 100 / Malicious
@@ -121,6 +120,7 @@ class RiskScorer:
             attack_types.add("Jailbreak Fingerprint Match")
 
         # ── 6. Context + Behavioral bonuses ──────────────────────────────────
+        base_score = score
         score += context_bonus + behavioral_bonus
         if context_bonus > 0:
             reasons.append(f"Context-elevated risk (+{context_bonus})")
@@ -140,6 +140,7 @@ class RiskScorer:
 
         return RiskExplanation(
             risk_score=min(100, score),
+            base_risk_score=min(100, base_score),
             classification=classification,
             reasons=reasons,
             attack_types=list(attack_types),
