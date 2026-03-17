@@ -9,9 +9,8 @@ IronGuard is organized into four primary modules:
 
 - **MOD-1: Real LLM Proxy Layer**
   - Managed by `app/proxy/llm_proxy.py`.
-  - Routes requests to free LLM providers (**Gemini Flash** as primary, **Mistral** as fallback).
-  - Handles security preamble injection and XML wrapping.
-  - Implements per-user/provider rate limiting and exponential backoff.
+  - Routes requests to LLM providers (Gemini Flash primary, Mistral fallback).
+  - Handles security preamble injection and output sanitization.
 
 - **MOD-2: Response Security Layer**
   - Managed by `app/response_security/`.
@@ -20,23 +19,22 @@ IronGuard is organized into four primary modules:
 
 - **MOD-3: Prompt Fingerprinting Engine**
   - Managed by `app/fingerprinting/`.
-  - Uses **SimHash (XOR Hamming)** and **MinHash** for sub-millisecond detection of known jailbreak forms.
-  - Integrates directly with the risk scorer to provide an immediate score bonus.
+  - Uses **SimHash** and **MinHash LSH** for sub-millisecond detection of known jailbreaks.
+  - Features an **Autonomous Learning** path that remembers new threats.
 
 - **MOD-4: Semantic Sanitization Engine**
   - Managed by `app/sanitization/`.
-  - Neutralizes suspicious prompts using a dual-path approach (Regex + LLM rewrite).
-  - Verifies **Intent Preservation** using embedding similarity (threshold 0.50).
+  - Neutralizes suspicious prompts using LLM-based rewriting.
+  - Verifies **Intent Preservation** using embedding similarity (threshold 0.70).
 
 ### 2. Decision Engine v2
 - **NFKC Normalization**: Flattens homoglyphs and hidden characters at ingress.
-- **Parallel Processing**: Uses `asyncio.gather` to run Fingerprinting and Intent Classification concurrently for low latency.
-- **Risk Scoring**: Aggregates signals from all layers into a final score (0-100).
+- **Hybrid Pipeline**: Runs Pattern Detection, Semantic Analysis, and Fingerprinting in parallel.
+- **Context Awareness**: Incorporates multi-turn conversation history into detection prompts.
 
-### 3. User Behavior Monitor & Identity Sync
-- **Identity Sync**: Automatically synchronizes user names and emails from authentication providers.
-- **Trust Scoring**: Tracks and enforces user trust scores over time.
-- **Role-Based Access Control (RBAC)**: Distinguishes between Admin (analytics/management) and Employee (personal stats).
+### 3. User Behavior Monitor
+- **Trust Scoring**: Real-time reputation tracking based on prompt history.
+- **Session Enforcement**: Automatically terminates sessions after 3+ high-risk attempts.
 
 ### 4. Data Layer
 - **MongoDB**: Persistent storage for security events, threat logs, and user metadata.
@@ -50,9 +48,10 @@ graph TD
     Norm --> Pipeline[Parallel Detection Pipeline]
     
     subgraph Pipeline
-        MOD3[MOD-3: Fingerprinting]
+        L1[Layer 1: Pattern Detector]
+        L2[Layer 2: Semantic Analyzer]
         L3[Layer 3: Intent Classifier]
-        L1[Layer 1: Regex Patterns]
+        L4[Layer 4: MOD-3 Fingerprinting]
     end
     
     Pipeline --> Scorer[Risk Scorer]

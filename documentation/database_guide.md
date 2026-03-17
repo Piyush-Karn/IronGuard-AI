@@ -7,18 +7,14 @@ IronGuard utilizes a hybrid database approach to handle security logs, user stat
 MongoDB is used as the primary database for long-term storage of security events and operational data.
 
 ### Collections:
-1.  **`threat_logs`**: Stores every security event processed by the engine.
-    - Fields: `timestamp`, `user_id`, `prompt`, `risk_score`, `classification`, `action_taken`, `reasons`, `attack_types`, `classifier_output`.
-    - Purpose: Powering the Admin Dashboard analytics and historical audit trails.
-
-2.  **`trust_scores`**: Manages the security reputation and profiles of users.
-    - Fields: `user_id`, `role`, `trust_score`, `email`, `full_name`, `malicious_attempts`, `last_updated`.
-    - Purpose: Tracking behavioral trends, profiles, and enforcing RBAC.
+1.  **`threat_logs`**: Stores every security event processed by the engine (timestamp, user_id, action, risk_score, etc.).
+2.  **`trust_scores`**: Manages granular reputation data and roles for every user.
+3.  **`fingerprints` (Optional)**: If using persistent learning, this stores known attack signatures.
 
 ### Access Layer:
 - Implementation: `app/database/mongodb.py`
 - Driver: `Motor` (Asynchronous MongoDB driver for Python).
-
+- **Optimization**: Indexes are automatically created on `user_id` and `timestamp` during server startup to ensure dashboard performance.
 ---
 
 ## ChromaDB (Vector Storage)

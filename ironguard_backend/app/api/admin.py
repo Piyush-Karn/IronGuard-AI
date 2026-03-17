@@ -164,17 +164,27 @@ async def get_latency_metrics():
     if db is None:
         return {"data": "Database not connected"}
     
-    pipeline = [
-        {"$group": {
-            "_id": None,
-            "avg_latency": {"$avg": "$classifier_output.latency_ms"},
-            "max_latency": {"$max": "$classifier_output.latency_ms"},
-            "p95_latency": {"$percentile": {"input": "$classifier_output.latency_ms", "p": [95], "method": "approximate"}}
-        }}
-    ]
-    cursor = db.threat_logs.aggregate(pipeline)
-    results = await cursor.to_list(length=1)
-    return results[0] if results else {}
+    # Fetch all latency values to calculate percentile in Python (Mongo 6.0 compat)
+    cursor = db.threat_logs.find({}, {"classifier_output.latency_ms": 1})
+    logs = await cursor.to_list(length=1000)
+    
+    latencies = [log.get("classifier_output", {}).get("latency_ms", 0) for log in logs if log.get("classifier_output", {}).get("latency_ms") is not None]
+    
+    if not latencies:
+        return {"avg_latency": 0, "max_latency": 0, "p95_latency": 0}
+        
+    latencies.sort()
+    count = len(latencies)
+    avg_latency = sum(latencies) / count
+    max_latency = latencies[-1]
+    p95_index = min(int(count * 0.95), count - 1)
+    p95_latency = latencies[p95_index]
+    
+    return {
+        "avg_latency": avg_latency,
+        "max_latency": max_latency,
+        "p95_latency": p95_latency
+    }
 
 @router.get("/metrics/blocking-efficiency", dependencies=[admin_only])
 async def get_blocking_efficiency():
@@ -219,3 +229,23 @@ async def get_top_policy_violations():
     cursor = db.threat_logs.aggregate(pipeline)
     results = await cursor.to_list(length=5)
     return {r["_id"]: r["count"] for r in results}
+
+
+@router.get("/logs", dependencies=[admin_only])
+async def get_logs(limit: int = 50):
+    """
+    Fetch recent security event logs.
+    """
+    db = get_database()
+    if db is None:
+        return {"logs": []}
+    
+    cursor = db.threat_logs.find().sort("timestamp", -1).limit(limit)
+    logs = await cursor.to_list(length=limit)
+    
+    for log in logs:
+        log["_id"] = str(log["_id"])
+        if isinstance(log.get("timestamp"), datetime):
+            log["timestamp"] = log["timestamp"].isoformat()
+            
+    return {"logs": logs}

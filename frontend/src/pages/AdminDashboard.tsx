@@ -28,100 +28,6 @@ const tabs = [
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
-const stats = [
-  { icon: Users, label: "Total Users", value: "2,847", change: "+12%", changeType: "up" },
-  { icon: BarChart3, label: "Prompts Analyzed", value: "48,392", change: "+8%", changeType: "up" },
-  { icon: AlertTriangle, label: "Threats Blocked", value: "1,284", change: "+23%", changeType: "up" },
-  { icon: Activity, label: "Threat Level", value: "Medium", change: "Stable", changeType: "neutral" },
-];
-
-const recentActivity = [
-  { time: "12:41", user: "User21", status: "SAFE PROMPT", type: "safe" },
-  { time: "12:42", user: "User14", status: "PROMPT INJECTION DETECTED", type: "danger" },
-  { time: "12:43", user: "User09", status: "BLOCKED", type: "danger" },
-  { time: "12:44", user: "User05", status: "DATA EXTRACTION ATTEMPT", type: "warning" },
-  { time: "12:45", user: "User33", status: "SAFE PROMPT", type: "safe" },
-];
-
-// Chart data
-const threatTimelineData = [
-  { time: "00:00", threats: 12, blocked: 11, safe: 420 },
-  { time: "04:00", threats: 8, blocked: 8, safe: 310 },
-  { time: "08:00", threats: 24, blocked: 23, safe: 580 },
-  { time: "12:00", threats: 45, blocked: 43, safe: 720 },
-  { time: "16:00", threats: 38, blocked: 37, safe: 650 },
-  { time: "20:00", threats: 22, blocked: 21, safe: 490 },
-  { time: "Now", threats: 31, blocked: 30, safe: 560 },
-];
-
-const threatTypesPie = [
-  { name: "Injection", value: 482, color: "#ef4444" },
-  { name: "Extraction", value: 234, color: "#f97316" },
-  { name: "Jailbreak", value: 312, color: "#eab308" },
-  { name: "Manipulation", value: 156, color: "#8b5cf6" },
-  { name: "Obfuscation", value: 98, color: "#06b6d4" },
-];
-
-const weeklyData = [
-  { day: "Mon", threats: 142, blocked: 140 },
-  { day: "Tue", threats: 198, blocked: 196 },
-  { day: "Wed", threats: 167, blocked: 165 },
-  { day: "Thu", threats: 221, blocked: 218 },
-  { day: "Fri", threats: 189, blocked: 187 },
-  { day: "Sat", threats: 94, blocked: 94 },
-  { day: "Sun", threats: 78, blocked: 78 },
-];
-
-const responseTimeData = [
-  { time: "00:00", latency: 14 },
-  { time: "04:00", latency: 11 },
-  { time: "08:00", latency: 18 },
-  { time: "12:00", latency: 22 },
-  { time: "16:00", latency: 16 },
-  { time: "20:00", latency: 13 },
-  { time: "Now", latency: 12 },
-];
-
-const radarData = [
-  { category: "Injection", score: 92 },
-  { category: "Extraction", score: 88 },
-  { category: "Jailbreak", score: 95 },
-  { category: "Manipulation", score: 78 },
-  { category: "Obfuscation", score: 85 },
-  { category: "Override", score: 91 },
-];
-
-const threatAnalyticsData = [
-  { category: "Prompt Injection", count: 482, severity: "CRITICAL", trend: "+15%" },
-  { category: "Data Extraction", count: 234, severity: "HIGH", trend: "+8%" },
-  { category: "Role Manipulation", count: 156, severity: "HIGH", trend: "+32%" },
-  { category: "Jailbreak Attempts", count: 312, severity: "CRITICAL", trend: "+5%" },
-  { category: "Obfuscated Inputs", count: 98, severity: "MEDIUM", trend: "-2%" },
-  { category: "System Override", count: 67, severity: "CRITICAL", trend: "+18%" },
-];
-
-const liveMonitorLogs = [
-  { time: "12:41:03", ip: "192.168.1.47", user: "session_a8f2", status: "SAFE PROMPT — Standard query processed", type: "safe", severity: "LOW" },
-  { time: "12:41:18", ip: "10.0.3.112", user: "session_c4d1", status: "⚠ PROMPT INJECTION ATTEMPT — Escape sequence detected", type: "danger", severity: "CRITICAL" },
-  { time: "12:41:32", ip: "172.16.0.89", user: "session_f7a9", status: "BLOCKED — Recursive jailbreak pattern", type: "danger", severity: "HIGH" },
-  { time: "12:41:45", ip: "10.0.7.203", user: "session_b2e5", status: "⚠ DATA EXTRACTION — Payload blocked at layer 3", type: "warning", severity: "HIGH" },
-  { time: "12:42:01", ip: "192.168.4.15", user: "session_d9c3", status: "SAFE PROMPT — Verified clean input", type: "safe", severity: "LOW" },
-  { time: "12:42:14", ip: "10.0.1.67", user: "session_e1b8", status: "⚠ DAN-style bypass attempt neutralized", type: "danger", severity: "CRITICAL" },
-  { time: "12:42:28", ip: "172.16.2.44", user: "session_a3f6", status: "SAFE PROMPT — Standard query processed", type: "safe", severity: "LOW" },
-  { time: "12:42:41", ip: "10.0.9.156", user: "session_g5h2", status: "BLOCKED — Obfuscated instruction injection", type: "danger", severity: "HIGH" },
-];
-
-const securityLogsData = [
-  { id: "LOG-001", timestamp: "2026-03-08 12:41:03", event: "Prompt scan completed", level: "INFO", source: "Scanner v3.2" },
-  { id: "LOG-002", timestamp: "2026-03-08 12:41:18", event: "Injection attempt detected & blocked", level: "CRITICAL", source: "Firewall" },
-  { id: "LOG-003", timestamp: "2026-03-08 12:41:32", event: "User session flagged for review", level: "WARNING", source: "Behavior Engine" },
-  { id: "LOG-004", timestamp: "2026-03-08 12:41:45", event: "Data extraction payload intercepted", level: "HIGH", source: "DLP Module" },
-  { id: "LOG-005", timestamp: "2026-03-08 12:42:01", event: "Threat model updated successfully", level: "INFO", source: "ML Pipeline" },
-  { id: "LOG-006", timestamp: "2026-03-08 12:42:14", event: "DAN bypass neutralized at edge", level: "CRITICAL", source: "Firewall" },
-  { id: "LOG-007", timestamp: "2026-03-08 12:42:28", event: "Scheduled scan completed — 0 threats", level: "INFO", source: "Scanner v3.2" },
-  { id: "LOG-008", timestamp: "2026-03-08 12:42:41", event: "New threat signature added to database", level: "INFO", source: "Threat Intel" },
-];
-
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
   visible: (i: number) => ({
@@ -143,16 +49,20 @@ const chartTooltipStyle = {
 };
 
 // ─── Dashboard Tab ─────────────────────────────────────────
-const DashboardTab = ({ frequencyData, riskDistribution, topThreats }: { 
+const DashboardTab = ({ frequencyData, riskDistribution, topThreats, latencyMetrics, sanitizationRatio, blockingEfficiency, logs }: { 
   frequencyData: AttackFrequencyData | null, 
   riskDistribution: RiskDistributionData | null,
-  topThreats: TopThreatsData | null
+  topThreats: TopThreatsData | null,
+  latencyMetrics: any,
+  sanitizationRatio: any,
+  blockingEfficiency: any,
+  logs: any[]
 }) => {
   const threatTimelineData = frequencyData ? frequencyData.labels.map((label, idx) => ({
     time: label,
-    threats: frequencyData.datasets[0].data[idx] + frequencyData.datasets[1].data[idx],
-    blocked: frequencyData.datasets[0].data[idx],
-    safe: 500 + Math.floor(Math.random() * 200) // Mock safe traffic
+    threats: frequencyData.datasets.reduce((acc, ds) => acc + (ds.data[idx] || 0), 0),
+    blocked: frequencyData.datasets.find(ds => ds.label === "Blocked")?.data[idx] || 0,
+    safe: (frequencyData.datasets.find(ds => ds.label === "Passed")?.data[idx] || 0) + (frequencyData.datasets.find(ds => ds.label === "Safe")?.data[idx] || 0)
   })) : [];
 
   const threatTypesPie = topThreats ? Object.entries(topThreats).map(([name, value], i) => ({
@@ -161,10 +71,20 @@ const DashboardTab = ({ frequencyData, riskDistribution, topThreats }: {
     color: ["#ef4444", "#f97316", "#eab308", "#8b5cf6", "#06b6d4"][i % 5]
   })) : [];
 
+  const totalLogs = sanitizationRatio?.total || 0;
+  const threatsBlocked = (blockingEfficiency?.Blocked || 0);
+  
+  const dashboardStats = [
+    { icon: Users, label: "Total Users", value: "Active", change: "Real-time", changeType: "neutral" },
+    { icon: BarChart3, label: "Prompts Analyzed", value: totalLogs.toLocaleString(), change: "Total Volume", changeType: "neutral" },
+    { icon: AlertTriangle, label: "Threats Blocked", value: threatsBlocked.toLocaleString(), change: `${threatsBlocked > 0 ? "+" : ""}${threatsBlocked}`, changeType: "up" },
+    { icon: Activity, label: "Avg Latency", value: `${Math.round(latencyMetrics?.avg_latency || 0)}ms`, change: "System Performance", changeType: "neutral" },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat, i) => (
+        {dashboardStats.map((stat, i) => (
           <motion.div key={stat.label} variants={fadeUp} custom={i} initial="hidden" animate="visible">
             <GlassCard className="p-5">
               <div className="flex items-center gap-3 mb-3">
@@ -231,18 +151,20 @@ const DashboardTab = ({ frequencyData, riskDistribution, topThreats }: {
 
       <div className="grid lg:grid-cols-2 gap-4">
         <GlassCard className="p-5">
-          <h2 className="text-sm font-semibold text-white/70 mb-4">Recent Activity</h2>
-          <div className="space-y-1.5 font-mono text-sm">
-            {recentActivity.map((log, i) => (
-              <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-white/[0.03] transition-colors">
-                <span className="text-white/15">[{log.time}]</span>
-                <span className="text-white/40">{log.user}</span>
+          <h2 className="text-sm font-semibold text-white/70 mb-4">Live Activity</h2>
+          <div className="space-y-1.5 font-mono text-xs">
+            {logs && logs.length > 0 ? logs.slice(0, 5).map((log: any, i: number) => (
+              <div key={log._id || i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-white/[0.03] transition-colors">
+                <span className="text-white/15">[{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]</span>
+                <span className="text-white/40 truncate max-w-[80px]">{log.user_id}</span>
                 <span className="text-white/10">→</span>
-                <span className={log.type === "safe" ? "text-green-400/80" : log.type === "warning" ? "text-yellow-400/80" : "text-red-400/90"}>
-                  {log.status}
+                <span className={log.action_taken === "Passed" || log.action_taken === "Safe" ? "text-green-400/80" : log.action_taken === "Sanitized" ? "text-yellow-400/80" : "text-red-400/90"}>
+                  {log.action_taken.toUpperCase()}
                 </span>
               </div>
-            ))}
+            )) : (
+              <div className="h-32 flex items-center justify-center text-white/10 italic">No recent activity</div>
+            )}
           </div>
         </GlassCard>
 
@@ -274,108 +196,139 @@ const DashboardTab = ({ frequencyData, riskDistribution, topThreats }: {
 };
 
 // ─── Threat Analytics Tab ──────────────────────────────────
-const ThreatAnalyticsTab = () => (
-  <div>
-    <div className="grid sm:grid-cols-3 gap-4 mb-6">
-      {[
-        { label: "Total Threats", value: "1,349", icon: AlertTriangle, color: "text-red-400/80" },
-        { label: "Blocked Rate", value: "99.7%", icon: Shield, color: "text-green-400/80" },
-        { label: "Avg Response", value: "12ms", icon: Zap, color: "text-cyan-400/80" },
-      ].map((s, i) => (
-        <motion.div key={s.label} variants={fadeUp} custom={i} initial="hidden" animate="visible">
-          <GlassCard className="p-5">
-            <div className="flex items-center gap-3 mb-3">
-              <s.icon className={`h-5 w-5 ${s.color}`} />
-              <span className="text-[10px] uppercase tracking-wider text-white/25">{s.label}</span>
-            </div>
-            <p className="text-3xl font-bold text-white/90 tracking-tight">{s.value}</p>
-          </GlassCard>
-        </motion.div>
-      ))}
-    </div>
+const ThreatAnalyticsTab = ({ 
+  frequencyData, 
+  latencyMetrics, 
+  policyViolations 
+}: { 
+  frequencyData: AttackFrequencyData | null, 
+  latencyMetrics: any, 
+  policyViolations: any 
+}) => {
+  const radarData = policyViolations ? Object.entries(policyViolations).map(([category, count]) => ({
+    category,
+    score: Math.min(100, (Number(count) / 10) * 100)
+  })) : [];
 
-    <div className="grid lg:grid-cols-2 gap-4 mb-6">
-      {/* Weekly bar chart */}
-      <GlassCard className="p-5">
-        <h2 className="text-sm font-semibold text-white/70 mb-4">Weekly Threats vs Blocked</h2>
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={weeklyData} barGap={2}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-            <XAxis dataKey="day" stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
-            <YAxis stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
-            <Tooltip {...chartTooltipStyle} />
-            <Bar dataKey="threats" fill="#ef4444" fillOpacity={0.5} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="blocked" fill="#22c55e" fillOpacity={0.4} radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </GlassCard>
+  const threatAnalyticsData = (policyViolations && typeof policyViolations === 'object') ? Object.entries(policyViolations).map(([category, count]) => ({
+    category,
+    count: Number(count),
+    severity: Number(count) > 5 ? "CRITICAL" : Number(count) > 2 ? "HIGH" : "MEDIUM",
+    trend: "+0%"
+  })) : [];
 
-      {/* Response time line chart */}
-      <GlassCard className="p-5">
-        <h2 className="text-sm font-semibold text-white/70 mb-4">Response Latency (ms)</h2>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={responseTimeData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-            <XAxis dataKey="time" stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
-            <YAxis stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
-            <Tooltip {...chartTooltipStyle} />
-            <Line type="monotone" dataKey="latency" stroke="#06b6d4" strokeWidth={2} dot={{ fill: "#06b6d4", r: 3, strokeWidth: 0 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </GlassCard>
-    </div>
-
-    <div className="grid lg:grid-cols-3 gap-4">
-      {/* Radar chart */}
-      <GlassCard className="p-5">
-        <h2 className="text-sm font-semibold text-white/70 mb-4">Defense Coverage</h2>
-        <ResponsiveContainer width="100%" height={240}>
-          <RadarChart data={radarData}>
-            <PolarGrid stroke="rgba(255,255,255,0.08)" />
-            <PolarAngleAxis dataKey="category" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }} />
-            <Radar dataKey="score" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} strokeWidth={2} />
-          </RadarChart>
-        </ResponsiveContainer>
-      </GlassCard>
-
-      {/* Threat breakdown table */}
-      <GlassCard className="p-5 lg:col-span-2">
-        <h2 className="text-sm font-semibold text-white/70 mb-4">Threat Breakdown</h2>
-        <div className="space-y-2">
-          {threatAnalyticsData.map((t, i) => (
-            <div key={i} className="flex items-center gap-4 py-2.5 px-4 rounded-xl bg-white/[0.02] border border-white/[0.03] hover:bg-white/[0.04] transition-colors">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-white/70">{t.category}</p>
+  return (
+    <div>
+      <div className="grid sm:grid-cols-3 gap-4 mb-6">
+        {[
+          { label: "Total Violations", value: threatAnalyticsData.reduce((acc, t) => acc + (Number(t.count) || 0), 0), icon: AlertTriangle, color: "text-red-400/80" },
+          { label: "Blocked Rate", value: "99.7%", icon: Shield, color: "text-green-400/80" },
+          { label: "Avg Response", value: `${Math.round(latencyMetrics?.avg_latency || 0)}ms`, icon: Zap, color: "text-cyan-400/80" },
+        ].map((s, i) => (
+          <motion.div key={s.label} variants={fadeUp} custom={i} initial="hidden" animate="visible">
+            <GlassCard className="p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <s.icon className={`h-5 w-5 ${s.color}`} />
+                <span className="text-[10px] uppercase tracking-wider text-white/25">{s.label}</span>
               </div>
-              {/* Mini bar */}
-              <div className="w-24 h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${(t.count / 500) * 100}%`,
-                    backgroundColor: t.severity === "CRITICAL" ? "#ef4444" : t.severity === "HIGH" ? "#f97316" : "#eab308",
-                    opacity: 0.6,
-                  }}
-                />
+              <p className="text-3xl font-bold text-white/90 tracking-tight">{s.value}</p>
+            </GlassCard>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-4 mb-6">
+        {/* Weekly bar chart */}
+        <GlassCard className="p-5">
+          <h2 className="text-sm font-semibold text-white/70 mb-4">Historical Attack Volume</h2>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={frequencyData?.labels.map((l, i) => ({
+              day: l,
+              threats: frequencyData.datasets.find(ds => ds.label === "Blocked")?.data[i] || 0,
+              safe: (frequencyData.datasets.find(ds => ds.label === "Passed")?.data[i] || 0) + (frequencyData.datasets.find(ds => ds.label === "Safe")?.data[i] || 0)
+            })) || []}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <XAxis dataKey="day" stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
+              <YAxis stroke="rgba(255,255,255,0.15)" tick={{ fontSize: 10 }} />
+              <Tooltip {...chartTooltipStyle} />
+              <Bar dataKey="threats" fill="#ef4444" fillOpacity={0.5} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="safe" fill="#22c55e" fillOpacity={0.4} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </GlassCard>
+
+        {/* Response time line chart */}
+        <GlassCard className="p-5">
+          <h2 className="text-sm font-semibold text-white/70 mb-4">Engine Latency Profile</h2>
+          <div className="flex items-center justify-center h-[240px] flex-col gap-4">
+             <div className="flex gap-8">
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-cyan-400">{Math.round(latencyMetrics?.avg_latency || 0)}ms</p>
+                  <p className="text-[10px] text-white/20 uppercase font-bold mt-1">Average</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-blue-400">{Math.round(latencyMetrics?.p95_latency || 0)}ms</p>
+                  <p className="text-[10px] text-white/20 uppercase font-bold mt-1">P95</p>
+                </div>
+             </div>
+             <div className="w-full px-8">
+                <div className="h-1.5 w-full bg-white/[0.05] rounded-full overflow-hidden">
+                  <div className="h-full bg-cyan-500/50" style={{ width: `${Math.min(100, (latencyMetrics?.avg_latency || 0) * 2)}%` }} />
+                </div>
+             </div>
+          </div>
+        </GlassCard>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-4">
+        {/* Radar chart */}
+        <GlassCard className="p-5">
+          <h2 className="text-sm font-semibold text-white/70 mb-4">Defense Coverage</h2>
+          <ResponsiveContainer width="100%" height={240}>
+            <RadarChart data={radarData}>
+              <PolarGrid stroke="rgba(255,255,255,0.08)" />
+              <PolarAngleAxis dataKey="category" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.35)" }} />
+              <Radar dataKey="score" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.15} strokeWidth={2} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </GlassCard>
+
+        {/* Threat breakdown table */}
+        <GlassCard className="p-5 lg:col-span-2">
+          <h2 className="text-sm font-semibold text-white/70 mb-4">Threat Breakdown</h2>
+          <div className="space-y-2">
+            {threatAnalyticsData.map((t, i) => (
+              <div key={i} className="flex items-center gap-4 py-2.5 px-4 rounded-xl bg-white/[0.02] border border-white/[0.03] hover:bg-white/[0.04] transition-colors">
+                <div className="flex-1">
+                   <p className="text-sm font-medium text-white/70">{t.category}</p>
+                </div>
+                <div className="w-24 h-1.5 rounded-full bg-white/[0.05] overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${(Number(t.count) / 20) * 100}%`,
+                      backgroundColor: t.severity === "CRITICAL" ? "#ef4444" : t.severity === "HIGH" ? "#f97316" : "#eab308",
+                      opacity: 0.6,
+                    }}
+                  />
+                </div>
+                <span className="text-sm font-mono text-white/50 w-12 text-right">{t.count}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-medium ${
+                  t.severity === "CRITICAL" ? "text-red-400 bg-red-400/10" :
+                  t.severity === "HIGH" ? "text-orange-400 bg-orange-400/10" :
+                  "text-yellow-400 bg-yellow-400/10"
+                }`}>{t.severity}</span>
               </div>
-              <span className="text-sm font-mono text-white/50 w-12 text-right">{t.count}</span>
-              <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-medium ${
-                t.severity === "CRITICAL" ? "text-red-400 bg-red-400/10" :
-                t.severity === "HIGH" ? "text-orange-400 bg-orange-400/10" :
-                "text-yellow-400 bg-yellow-400/10"
-              }`}>{t.severity}</span>
-              <span className={`text-xs font-mono w-12 text-right ${t.trend.startsWith("+") ? "text-red-400/60" : "text-green-400/60"}`}>{t.trend}</span>
-              <TrendingUp className={`h-3.5 w-3.5 ${t.trend.startsWith("+") ? "text-red-400/40" : "text-green-400/40 rotate-180"}`} />
-            </div>
-          ))}
-        </div>
-      </GlassCard>
+            ))}
+          </div>
+        </GlassCard>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ─── Live Monitor Tab ──────────────────────────────────────
-const LiveMonitorTab = () => (
+const LiveMonitorTab = ({ logs }: { logs: any[] }) => (
   <div>
     <GlassCard className="overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3 border-b border-white/[0.05] bg-white/[0.01]">
@@ -399,47 +352,33 @@ const LiveMonitorTab = () => (
         </div>
       </div>
 
-      <div className="flex items-center gap-6 px-5 py-2 border-b border-white/[0.03] bg-white/[0.005] font-mono text-[10px]">
-        <span className="text-white/15">THREATS: <span className="text-red-400/60">23</span></span>
-        <span className="text-white/15">BLOCKED: <span className="text-orange-400/60">18</span></span>
-        <span className="text-white/15">SAFE: <span className="text-green-400/60">4,271</span></span>
-        <span className="text-white/15 ml-auto">LATENCY: <span className="text-cyan-400/60">12ms</span></span>
-      </div>
-
-      <div className="p-4 font-mono text-sm space-y-1 min-h-[350px]">
-        {liveMonitorLogs.map((log, i) => {
-          const severityColor = log.severity === "CRITICAL" ? "text-red-500" : log.severity === "HIGH" ? "text-orange-400" : "text-green-400";
+      <div className="p-4 font-mono text-xs space-y-1 min-h-[350px] max-h-[500px] overflow-y-auto">
+        {logs && logs.length > 0 ? logs.map((log: any, i: number) => {
+          const actionColor = log.action_taken === "Blocked" ? "text-red-500" : log.action_taken === "Sanitized" ? "text-orange-400" : "text-green-400";
           return (
             <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -20 }}
+              key={log._id || i}
+              initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.08, duration: 0.4 }}
-              className="flex items-start gap-2 py-2 px-3 rounded-lg hover:bg-white/[0.02] transition-colors"
+              className="flex items-start gap-3 py-2 px-3 border-b border-white/[0.02] hover:bg-white/[0.02] transition-colors"
             >
-              <span className="text-white/10 shrink-0 text-xs">[{log.time}]</span>
-              <span className="text-white/20 shrink-0 text-xs">{log.ip}</span>
-              <span className="text-cyan-400/40 shrink-0 text-xs">{log.user}</span>
+              <span className="text-white/10 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+              <span className="text-white/20 shrink-0">{log.ip_address || "internal"}</span>
+              <span className="text-cyan-400/30 truncate w-20 shrink-0">{log.user_id}</span>
               <span className="text-white/[0.06]">│</span>
-              <span className={`text-xs flex-1 ${
-                log.type === "safe" ? "text-green-400/70" :
-                log.type === "warning" ? "text-yellow-400/70" :
-                "text-red-400/80"
-              }`}>{log.status}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${severityColor} font-medium`}
-                style={{ backgroundColor: log.severity === "CRITICAL" ? "rgba(239,68,68,0.08)" : log.severity === "HIGH" ? "rgba(251,146,60,0.08)" : "rgba(74,222,128,0.08)" }}>
-                {log.severity}
+              <span className={`flex-1 truncate ${actionColor}`}>{log.prompt}</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${actionColor} bg-white/[0.03]`}>
+                {log.action_taken.toUpperCase()}
               </span>
-              {(log.type === "danger" || log.type === "warning") && (
-                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0 mt-1 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
-              )}
             </motion.div>
           );
-        })}
+        }) : (
+           <div className="h-full flex items-center justify-center text-white/10 italic py-20">No live telemetry available</div>
+        )}
       </div>
 
       <div className="flex items-center px-5 py-2 border-t border-white/[0.03] bg-white/[0.005] font-mono text-[10px] text-white/10">
-        <span>$ ironguard --watch --verbose --admin</span>
+        <span>$ ironguard --watch --verbose --admin --tail</span>
         <span className="animate-pulse ml-1">▊</span>
       </div>
     </GlassCard>
@@ -617,50 +556,31 @@ const TeamTab = () => {
 };
 
 // ─── Security Logs Tab ─────────────────────────────────────
-const SecurityLogsTab = () => (
-  <div>
-    <div className="grid sm:grid-cols-2 gap-4 mb-6">
-      <GlassCard className="p-5">
-        <div className="flex items-center gap-3 mb-2">
-          <Bell className="h-4 w-4 text-yellow-400/60" />
-          <span className="text-sm font-medium text-white/60">Active Alerts</span>
-        </div>
-        <p className="text-2xl font-bold text-white/90">7</p>
-        <p className="text-xs text-white/25 mt-1">3 critical, 4 warning</p>
-      </GlassCard>
-      <GlassCard className="p-5">
-        <div className="flex items-center gap-3 mb-2">
-          <FileText className="h-4 w-4 text-cyan-400/60" />
-          <span className="text-sm font-medium text-white/60">Total Logs Today</span>
-        </div>
-        <p className="text-2xl font-bold text-white/90">12,847</p>
-        <p className="text-xs text-white/25 mt-1">+1,284 from yesterday</p>
-      </GlassCard>
-    </div>
-
+const SecurityLogsTab = ({ logs }: { logs: any[] }) => (
+  <div className="space-y-6">
     <GlassCard className="p-5">
-      <h2 className="text-sm font-semibold text-white/70 mb-4">Security Event Log</h2>
-      <div className="space-y-2">
-        {securityLogsData.map((log, i) => (
+      <h2 className="text-sm font-semibold text-white/70 mb-4">Master Security Event Log</h2>
+      <div className="space-y-1.5">
+        {logs && logs.length > 0 ? logs.map((log: any, i: number) => (
           <motion.div
-            key={log.id}
-            initial={{ opacity: 0, y: 10 }}
+            key={log._id || i}
+            initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05, duration: 0.3 }}
-            className="flex items-center gap-4 py-2.5 px-4 rounded-xl bg-white/[0.015] border border-white/[0.03] hover:bg-white/[0.03] transition-colors font-mono text-xs"
+            className="flex items-center gap-4 py-2 px-4 rounded-xl bg-white/[0.015] border border-white/[0.03] hover:bg-white/[0.03] transition-colors font-mono text-[11px]"
           >
-            <span className="text-white/15 shrink-0 w-16">{log.id}</span>
-            <span className="text-white/25 shrink-0 w-40">{log.timestamp}</span>
-            <span className="text-white/50 flex-1">{log.event}</span>
-            <span className={`px-2 py-0.5 rounded font-medium shrink-0 ${
-              log.level === "CRITICAL" ? "text-red-400 bg-red-400/8" :
-              log.level === "HIGH" ? "text-orange-400 bg-orange-400/8" :
-              log.level === "WARNING" ? "text-yellow-400 bg-yellow-400/8" :
-              "text-white/30 bg-white/[0.03]"
-            }`}>{log.level}</span>
-            <span className="text-white/20 shrink-0 w-28 text-right">{log.source}</span>
+            <span className="text-white/10 shrink-0 w-32">{new Date(log.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+            <span className="text-cyan-400/30 shrink-0 w-24 truncate">{log.user_id}</span>
+            <span className="text-white/40 flex-1 truncate">{log.prompt}</span>
+            <span className={`px-2 py-0.5 rounded font-bold shrink-0 ${
+              log.action_taken === "Blocked" ? "text-red-400 bg-red-400/10" :
+              log.action_taken === "Sanitized" ? "text-orange-400 bg-orange-400/10" :
+              "text-green-400 bg-green-400/10"
+            }`}>{log.action_taken.toUpperCase()}</span>
+            <span className="text-white/10 shrink-0 w-12 text-right">{log.risk_score}</span>
           </motion.div>
-        ))}
+        )) : (
+            <div className="h-40 flex items-center justify-center text-white/10 italic">No logs recorded yet</div>
+        )}
       </div>
     </GlassCard>
   </div>
@@ -761,7 +681,42 @@ const AdminDashboard = () => {
         variant: "destructive",
       });
     }
-  }, []);
+  }, [user?.id]);
+
+  const { data: logsData } = useQuery({
+    queryKey: ["securityLogs", user?.id],
+    queryFn: () => api.getLogs(user?.id || ""),
+    enabled: !!user?.id,
+    refetchInterval: 5000,
+  });
+
+  const { data: latencyMetrics } = useQuery({
+    queryKey: ["latencyMetrics", user?.id],
+    queryFn: () => api.getLatencyMetrics(user?.id || ""),
+    enabled: !!user?.id,
+    refetchInterval: 10000,
+  });
+
+  const { data: blockEfficiency } = useQuery({
+    queryKey: ["blockEfficiency", user?.id],
+    queryFn: () => api.getBlockingEfficiency(user?.id || ""),
+    enabled: !!user?.id,
+    refetchInterval: 10000,
+  });
+
+  const { data: sanRatio } = useQuery({
+    queryKey: ["sanRatio", user?.id],
+    queryFn: () => api.getSanitizationRatio(user?.id || ""),
+    enabled: !!user?.id,
+    refetchInterval: 10000,
+  });
+
+  const { data: policyViolations } = useQuery({
+    queryKey: ["policyViolations", user?.id],
+    queryFn: () => api.getTopPolicyViolations(user?.id || ""),
+    enabled: !!user?.id,
+    refetchInterval: 10000,
+  });
 
   useEffect(() => {
     fetchAnalytics();
@@ -785,9 +740,9 @@ const AdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#050508] text-white relative" style={{ fontFamily: "'Space Grotesk','Inter',system-ui,sans-serif" }}>
+      <LiquidEther />
       <div className="fixed inset-0 pointer-events-none">
         <AuroraBackground />
-        <LiquidEther />
         <FloatingBlobs />
       </div>
 
@@ -845,23 +800,58 @@ const AdminDashboard = () => {
         </div>
 
         {/* Tab Content */}
-        <AnimatePresence mode="wait">
-          <motion.div key={activeTab} variants={tabContent} initial="hidden" animate="visible" exit="exit">
-            {activeTab === "dashboard" && (
-              <DashboardTab 
-                frequencyData={analyticsData.frequency} 
-                riskDistribution={analyticsData.risk}
-                topThreats={analyticsData.threats}
-              />
-            )}
-            {activeTab === "analytics" && <ThreatAnalyticsTab />}
-            {activeTab === "team" && <TeamTab />}
-            {activeTab === "live-monitor" && <LiveMonitorTab />}
-            {activeTab === "security-logs" && <SecurityLogsTab />}
-            {activeTab === "settings" && <SettingsTab />}
-          </motion.div>
-        </AnimatePresence>
+        <div className="relative">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              variants={tabContent}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+            >
+              {activeTab === "dashboard" && (
+                <DashboardTab 
+                   frequencyData={analyticsData.frequency} 
+                   riskDistribution={analyticsData.risk}
+                   topThreats={analyticsData.threats}
+                   latencyMetrics={latencyMetrics}
+                   sanitizationRatio={sanRatio}
+                   blockingEfficiency={blockEfficiency}
+                   logs={logsData?.logs || []}
+                />
+              )}
+              {activeTab === "analytics" && (
+                <ThreatAnalyticsTab 
+                  frequencyData={analyticsData.frequency}
+                  latencyMetrics={latencyMetrics}
+                  policyViolations={policyViolations}
+                />
+              )}
+              {activeTab === "team" && <TeamTab />}
+              {activeTab === "live-monitor" && <LiveMonitorTab logs={logsData?.logs || []} />}
+              {activeTab === "security-logs" && <SecurityLogsTab logs={logsData?.logs || []} />}
+              {activeTab === "settings" && <SettingsTab />}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
+
+      {/* Footer info */}
+        <div className="container mx-auto px-8 pb-12 mt-auto">
+          <div className="flex items-center justify-between py-6 border-t border-white/[0.05]">
+            <p className="text-[10px] text-white/15 uppercase font-mono tracking-widest">IronGuard AI Security Pipeline v3.2.0-STABLE</p>
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-green-500/50" />
+                <span className="text-[10px] text-white/30 uppercase font-mono">Engine: ONLINE</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-blue-500/50" />
+                <span className="text-[10px] text-white/30 uppercase font-mono">Latency: {Math.round(latencyMetrics?.avg_latency || 0)}ms</span>
+              </div>
+            </div>
+          </div>
+        </div>
     </div>
   );
 };

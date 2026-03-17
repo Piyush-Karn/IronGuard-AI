@@ -71,6 +71,44 @@ export interface UserListResponse {
   users: UserListItem[];
 }
 
+export interface LatencyMetrics {
+  avg_latency: number;
+  max_latency: number;
+  p95_latency: number;
+}
+
+export interface BlockingEfficiency {
+  [key: string]: number;
+}
+
+export interface SanitizationRatio {
+  ratio: number;
+  sanitized: number;
+  total: number;
+}
+
+export interface TopPolicyViolations {
+  [key: string]: number;
+}
+
+export interface LogEntry {
+  timestamp: string;
+  user_id: string;
+  user_email?: string;
+  prompt: string;
+  risk_score: number;
+  classification: string;
+  action_taken: string;
+  ip_address?: string;
+  reasons: string[];
+  attack_types: string[];
+  raw_detection_score: number;
+}
+
+export interface LogsResponse {
+  logs: LogEntry[];
+}
+
 const API_BASE_URL = "http://localhost:8000/api/v1";
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -151,5 +189,30 @@ export const api = {
     request<{status: string, message: string}>("/unblock", {
       method: "POST",
       body: JSON.stringify({ user_id: userId }),
+    }),
+
+  getLatencyMetrics: (userId: string) =>
+    request<LatencyMetrics>("/analytics/metrics/latency-breakdown", {
+      headers: { "X-User-Id": userId }
+    }),
+
+  getBlockingEfficiency: (userId: string) =>
+    request<BlockingEfficiency>("/analytics/metrics/blocking-efficiency", {
+      headers: { "X-User-Id": userId }
+    }),
+
+  getSanitizationRatio: (userId: string) =>
+    request<SanitizationRatio>("/analytics/metrics/sanitization-ratio", {
+      headers: { "X-User-Id": userId }
+    }),
+
+  getTopPolicyViolations: (userId: string) =>
+    request<TopPolicyViolations>("/analytics/metrics/top-policy-violations", {
+      headers: { "X-User-Id": userId }
+    }),
+
+  getLogs: (userId: string, limit: number = 50) =>
+    request<LogsResponse>(`/analytics/logs?limit=${limit}`, {
+      headers: { "X-User-Id": userId }
     }),
 };

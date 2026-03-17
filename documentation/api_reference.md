@@ -75,13 +75,23 @@ Retrieves the authenticated user's role and synchronizes profile data.
 All analytics endpoints require **Admin** privileges and MUST include the `X-User-Id` header.
 
 ### `GET /api/v1/analytics/users`
-Retrieves a list of all users with aggregated security statistics.
+Retrieves a list of all users with aggregated security statistics (checks, sanitized, blocked) and trust scores.
 
-### `GET /api/v1/analytics/attack-frequency`
-Returns temporal data on how many attacks were blocked over time.
+### `GET /api/v1/analytics/metrics/latency-breakdown`
+Returns system performance metrics: `avg_latency`, `max_latency`, and `p95_latency` (calculated live).
 
-### `GET /api/v1/analytics/top-threats`
-Returns a breakdown of which threat categories are most active.
+### `GET /api/v1/analytics/metrics/blocking-efficiency`
+Returns a breakdown of actions taken (Passed, Blocked, Sanitized) across all logs.
+
+### `GET /api/v1/analytics/metrics/sanitization-ratio`
+Returns the percentage of prompts that were successfully sanitized vs total prompts.
+
+### `GET /api/v1/analytics/metrics/top-policy-violations`
+Returns the top 5 reasons for security interventions (e.g., "Prompt Injection", "PII Leak").
+
+### `GET /api/v1/analytics/logs`
+Fetches a chronological list of recent `threat_logs`.
+- **Parameters**: `limit` (default: 50).
 
 ---
 

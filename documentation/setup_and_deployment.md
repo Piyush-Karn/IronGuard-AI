@@ -30,38 +30,28 @@ Docker is the preferred way to run IronGuard as it ensures all security models a
 
 ### Commands
 - **Start everything**: `docker compose up --build -d`
+- **Restart (applied changes)**: `docker compose restart backend`
 - **View logs**: `docker compose logs -f backend`
-- **Stop system**: `docker compose down`
 
-### Environment Variables
-Modify the `.env` file in the `ironguard_backend` directory to configure the core system:
-- `MONGO_URL`: Connection string for MongoDB (default: `mongodb://localhost:27017`).
-- `CHROMA_HOST`: Hostname for ChromaDB (default: `localhost`).
-- **LLM Proxy Keys (MOD-1)**:
-  - `GEMINI_API_KEY`: Primary provider (Google Gemini Flash).
-  - `MISTRAL_API_KEY`: Fallback provider (Mistral AI).
-- **Rate Limits**:
-  - `RATELIMIT_USER_RPM`: Max requests per minute per user (default: 20).
-  - `RATELIMIT_PROVIDER_RPM`: Max requests per minute per provider (default: 60).
+### Environment Variables (.env)
+- `GEMINI_API_KEY`: Google AI key for primary detection and sanitization.
+- `MISTRAL_API_KEY`: Fallback provider key.
+- `MONGO_URL`: `mongodb://mongodb:27017/ironguard` (internal container URL).
+- `CHROMA_HOST`: `chromadb` (internal container name).
 
 ---
 
 ## 3. Production Hardening
-
-When deploying IronGuard to a production environment (e.g., AWS, GCP, Azure), consider the following:
-
-### Infrastructure
-- **GPU Acceleration**: For high-traffic production use, we recommend using a GPU for the `Intent Classifier` and `SentenceTransformer` layers. Update the `device` parameter in `app/threat_detection/intent_classifier.py` from `-1` (CPU) to `0` (GPU).
-- **Persistent Volumes**: Ensure that Docker volumes for MongoDB (`mongodb_data`) and ChromaDB (`chroma_data`) are backed up regularly.
-
-### Security
-- **API Authentication**: Protect the IronGuard administrative endpoints using a reverse proxy (like Nginx or Traefik) with proper SSL/TLS and API key validation.
-- **Network Isolation**: Ensure the databases (MongoDB/ChromaDB) are only accessible to the IronGuard backend container and not exposed to the public internet.
+- **Volume Persistence**: Data is stored in `mongodb_data` and `chroma_data` volumes. Do not delete them unless you want to wipe all logs and learned fingerprints.
+- **Model Caching**: The Docker build pre-downloads `all-MiniLM-L6-v2` and `protectai/deberta-v3-base`.
 
 ## 4. Troubleshooting
 
-### Model Loading Delay
-The first time you start IronGuard, it may take several minutes to download the 500MB+ security models from Hugging Face. We have optimized this in our `Dockerfile` by pre-caching these models during the build phase.
+### Blank Dashboard / 404 Logs
+If the Admin Dashboard appears blank or the logs return 404:
+1. Ensure the backend container has actually started (it waits for MongoDB).
+2. Run `docker compose restart backend` to ensure all Python routes are freshly registered.
+3. Check the "Engine Status" indicator in the dashboard footer.
 
-### "Dataset not found" Errors
-If `init_dataset.py` fails to download datasets from Hugging Face, check your container's internet connectivity or verify if the dataset paths on the Hub have changed.
+### MongoDB $percentile Errors
+If you see aggregation errors related to `$percentile`, ensure you are using the updated `admin.py` which calculates P95 latency in Python for MongoDB 6.0 compatibility.
