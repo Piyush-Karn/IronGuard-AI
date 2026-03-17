@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from app.database.mongodb import get_database
 from app.api.auth import RoleChecker
@@ -26,14 +27,38 @@ async def get_attack_frequency():
     if db is None:
         return {"data": "Database not connected"}
         
-    # Example aggregation (stubbed for simplicity)
-    # Counts attacks by day/hour
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    
+    pipeline = [
+        {"$match": {"timestamp": {"$gte": thirty_days_ago}}},
+        {"$group": {
+            "_id": {
+                "date": {"$dateToString": {"format": "%Y-%m-%d", "date": "$timestamp"}},
+                "action": "$action_taken"
+            },
+            "count": {"$sum": 1}
+        }},
+        {"$sort": {"_id.date": 1}},
+    ]
+    
+    cursor = db.threat_logs.aggregate(pipeline)
+    results = await cursor.to_list(length=300)
+    
+    # Process results into a format suitable for the frontend (e.g., Chart.js)
+    dates = sorted(list(set(r["_id"]["date"] for r in results)))
+    actions = list(set(r["_id"]["action"] for r in results))
+    
+    datasets = []
+    for action in actions:
+        data = []
+        for d in dates:
+            count = next((r["count"] for r in results if r["_id"]["date"] == d and r["_id"]["action"] == action), 0)
+            data.append(count)
+        datasets.append({"label": action, "data": data})
+        
     return {
-        "labels": ["Mon", "Tue", "Wed", "Thu", "Fri"],
-        "datasets": [
-            {"label": "Malicious", "data": [12, 19, 3, 5, 2]},
-            {"label": "Suspicious", "data": [5, 10, 2, 8, 4]}
-        ]
+        "labels": dates,
+        "datasets": datasets
     }
 
 @router.get("/top-threats", dependencies=[admin_only])
@@ -42,22 +67,38 @@ async def get_top_threats():
     if db is None:
          return {"data": "Database not connected"}
          
-    # Return distribution of attack types
-    return {
-        "Prompt Injection": 45,
-        "System Prompt Leak": 20,
-        "Jailbreak Attempt": 25,
-        "Policy Bypass": 5,
-        "Data Exfiltration": 5
-    }
+    pipeline = [
+        {"$unwind": "$attack_types"},
+        {"$group": {"_id": "$attack_types", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10},
+    ]
+    
+    cursor = db.threat_logs.aggregate(pipeline)
+    results = await cursor.to_list(length=10)
+    
+    return {r["_id"]: r["count"] for r in results}
 
 @router.get("/risk-distribution", dependencies=[admin_only])
 async def get_risk_distribution():
-    return {
-        "Safe": 75,
-        "Suspicious": 15,
-        "Malicious": 10
-    }
+    db = get_database()
+    if db is None:
+        return {"data": "Database not connected"}
+        
+    pipeline = [
+        {"$bucket": {
+            "groupBy": "$risk_score",
+            "boundaries": [0, 30, 60, 101],
+            "default": "Unknown",
+            "output": {"count": {"$sum": 1}}
+        }}
+    ]
+    
+    cursor = db.threat_logs.aggregate(pipeline)
+    results = await cursor.to_list(length=10)
+    
+    mapping = {0: "Safe", 30: "Suspicious", 60: "Malicious"}
+    return {mapping.get(r["_id"], "Other"): r["count"] for r in results}
 
 @router.get("/user-behavior", dependencies=[admin_only])
 async def get_user_behavior():
@@ -117,3 +158,64 @@ async def get_users():
         })
 
     return {"users": result}
+@router.get("/metrics/latency-breakdown", dependencies=[admin_only])
+async def get_latency_metrics():
+    db = get_database()
+    if db is None:
+        return {"data": "Database not connected"}
+    
+    pipeline = [
+        {"$group": {
+            "_id": None,
+            "avg_latency": {"$avg": "$classifier_output.latency_ms"},
+            "max_latency": {"$max": "$classifier_output.latency_ms"},
+            "p95_latency": {"$percentile": {"input": "$classifier_output.latency_ms", "p": [95], "method": "approximate"}}
+        }}
+    ]
+    cursor = db.threat_logs.aggregate(pipeline)
+    results = await cursor.to_list(length=1)
+    return results[0] if results else {}
+
+@router.get("/metrics/blocking-efficiency", dependencies=[admin_only])
+async def get_blocking_efficiency():
+    db = get_database()
+    if db is None:
+        return {"data": "Database not connected"}
+    
+    pipeline = [
+        {"$group": {
+            "_id": "$action_taken",
+            "count": {"$sum": 1}
+        }}
+    ]
+    cursor = db.threat_logs.aggregate(pipeline)
+    results = await cursor.to_list(length=10)
+    return {r["_id"]: r["count"] for r in results}
+
+@router.get("/metrics/sanitization-ratio", dependencies=[admin_only])
+async def get_sanitization_ratio():
+    db = get_database()
+    if db is None:
+        return {"data": "Database not connected"}
+    
+    total = await db.threat_logs.count_documents({})
+    if total == 0: return {"ratio": 0}
+    
+    sanitized = await db.threat_logs.count_documents({"action_taken": "Sanitized"})
+    return {"ratio": (sanitized / total) * 100, "sanitized": sanitized, "total": total}
+
+@router.get("/metrics/top-policy-violations", dependencies=[admin_only])
+async def get_top_policy_violations():
+    db = get_database()
+    if db is None:
+        return {"data": "Database not connected"}
+    
+    pipeline = [
+        {"$unwind": "$reasons"},
+        {"$group": {"_id": "$reasons", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 5}
+    ]
+    cursor = db.threat_logs.aggregate(pipeline)
+    results = await cursor.to_list(length=5)
+    return {r["_id"]: r["count"] for r in results}

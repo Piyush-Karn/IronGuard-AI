@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel
 from typing import Optional, List
@@ -6,7 +7,6 @@ from app.api.auth import get_current_user_id
 from app.monitoring.user_manager import user_manager
 from app.models.schemas import PromptRequest, RiskExplanation, ThreatLog, ClassifierOutput, Role
 
-from app.services.prompt_processor import prompt_processor
 from app.security_engine.decision import decision_engine
 from app.proxy.llm_proxy import llm_proxy, ProxyError               # MOD-1
 from app.response_security.response_monitor import response_monitor  # MOD-2
@@ -46,6 +46,7 @@ class ScanResponse(BaseModel):
     classifier_output: Optional[ClassifierOutput] = None
     fingerprint_match: Optional[bool] = None
     fingerprint_method: Optional[str] = None
+    raw_detection_score: int = 0
 
 
 class ProcessedResponse(BaseModel):
@@ -57,6 +58,7 @@ class ProcessedResponse(BaseModel):
     sanitized_prompt: Optional[str] = None      # shown only if sanitization occurred
     sanitization_info: Optional[dict] = None     # {method, rules_applied, similarity}
     fingerprint_match: Optional[bool] = None
+    raw_detection_score: int = 0
 
 
 @router.post("/scan_prompt", response_model=ScanResponse)
@@ -70,12 +72,21 @@ async def scan_prompt(request: PromptRequest, req: Request):
             detail="Session terminated due to multiple malicious attempts."
         )
 
-    # 2. Normalize (additional normalization happens in decision engine via NFKC)
-    normalized_prompt = prompt_processor.normalize(request.prompt)
 
     # 3. Full hybrid evaluation — v2 returns 5 values
     risk_explanation, action, classifier_result, fp_result, sanitization_result = \
-        await decision_engine.evaluate_request(normalized_prompt)
+        await decision_engine.evaluate_request(
+            request.prompt,
+            user_id=request.user_id,
+            session_id=request.conversation_id
+        )
+
+    # 3.1 Session context update (Feature 1)
+    if request.conversation_id:
+        from app.context.context_builder import context_builder
+        asyncio.create_task(context_builder.add_to_context(
+            request.conversation_id, request.user_id, request.prompt, risk_explanation.risk_score
+        ))
 
     # 4. Trust score update
     await user_behavior_monitor.update_trust_score(
@@ -91,6 +102,7 @@ async def scan_prompt(request: PromptRequest, req: Request):
     )
 
     # 6. Log event (now includes classifier + fingerprint data)
+    raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
     threat_log = ThreatLog(
         user_id=request.user_id,
         user_email=request.user_email,
@@ -101,9 +113,12 @@ async def scan_prompt(request: PromptRequest, req: Request):
         ip_address=ip_address,
         reasons=risk_explanation.reasons,
         attack_types=risk_explanation.attack_types,
+        raw_detection_score=raw_detection_score,
         classifier_output=classifier_output,
     )
     await security_logger.log_event(threat_log)
+
+    raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus # base detection signal
 
     return ScanResponse(
         risk_explanation=risk_explanation,
@@ -111,6 +126,7 @@ async def scan_prompt(request: PromptRequest, req: Request):
         classifier_output=classifier_output,
         fingerprint_match=fp_result.is_match,
         fingerprint_method=fp_result.method_used if fp_result.is_match else None,
+        raw_detection_score=raw_detection_score
     )
 
 
@@ -125,12 +141,21 @@ async def process_prompt(request: PromptRequest, req: Request):
             detail="Session terminated due to multiple malicious attempts."
         )
 
-    # 2. Normalize
-    normalized_prompt = prompt_processor.normalize(request.prompt)
 
     # 3. Full evaluation (v2 decision engine)
     risk_explanation, action, classifier_result, fp_result, sanitization_result = \
-        await decision_engine.evaluate_request(normalized_prompt)
+        await decision_engine.evaluate_request(
+            request.prompt,
+            user_id=request.user_id,
+            session_id=request.conversation_id
+        )
+
+    # 3.1 Session context update (Feature 1)
+    if request.conversation_id:
+        from app.context.context_builder import context_builder
+        asyncio.create_task(context_builder.add_to_context(
+            request.conversation_id, request.user_id, request.prompt, risk_explanation.risk_score
+        ))
 
     # 4. Trust score update
     await user_behavior_monitor.update_trust_score(
@@ -147,6 +172,7 @@ async def process_prompt(request: PromptRequest, req: Request):
 
     # 6. If blocked — return immediately, no LLM call
     if action == "Blocked":
+        raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
         threat_log = ThreatLog(
             user_id=request.user_id,
             user_email=request.user_email,
@@ -157,6 +183,7 @@ async def process_prompt(request: PromptRequest, req: Request):
             ip_address=ip_address,
             reasons=risk_explanation.reasons,
             attack_types=risk_explanation.attack_types,
+            raw_detection_score=raw_detection_score,
             classifier_output=classifier_output,
         )
         await security_logger.log_event(threat_log)
@@ -174,11 +201,11 @@ async def process_prompt(request: PromptRequest, req: Request):
     if action == "Sanitized" and sanitization_result and sanitization_result.sanitized_prompt:
         final_prompt = sanitization_result.sanitized_prompt
     else:
-        final_prompt = normalized_prompt
+        final_prompt = request.prompt
 
-    # 8. MOD-1: Forward to real LLM proxy
+    # 8. Forward to real LLM proxy
     proxy_result = await llm_proxy.route_request(
-        provider="openai",
+        provider="auto",  # BUG-2 fix
         prompt=final_prompt,
         user_id=request.user_id,
     )
@@ -208,6 +235,7 @@ async def process_prompt(request: PromptRequest, req: Request):
         violations_for_log = [f"{v.type}: {v.matched_pattern}" for v in scan_result.violations]
         final_response_text = scan_result.redacted_text or llm_response_text
 
+    raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
     threat_log = ThreatLog(
         user_id=request.user_id,
         user_email=request.user_email,
@@ -218,9 +246,12 @@ async def process_prompt(request: PromptRequest, req: Request):
         ip_address=ip_address,
         reasons=risk_explanation.reasons,
         attack_types=risk_explanation.attack_types,
+        raw_detection_score=raw_detection_score,
         classifier_output=classifier_output,
     )
     await security_logger.log_event(threat_log)
+
+    raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
 
     return ProcessedResponse(
         risk_explanation=risk_explanation,
@@ -235,6 +266,7 @@ async def process_prompt(request: PromptRequest, req: Request):
             "intent_similarity": sanitization_result.intent_similarity_score,
         } if action == "Sanitized" and sanitization_result else None,
         fingerprint_match=fp_result.is_match,
+        raw_detection_score=raw_detection_score
     )
 
 

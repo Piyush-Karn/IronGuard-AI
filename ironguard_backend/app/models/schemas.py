@@ -60,6 +60,7 @@ class ThreatLog(BaseModel):
     ip_address: Optional[str] = None
     reasons: List[str]
     attack_types: List[str]
+    raw_detection_score: int = 0
     classifier_output: Optional[ClassifierOutput] = None
 
 

@@ -26,8 +26,10 @@ async def lifespan(app: FastAPI):
     # 3. MOD-3: Fingerprint Engine — load JSON + construct MinHashLSH
     #    Must complete before serving (synchronous, ~200ms on cold start)
     from app.fingerprinting.fingerprint_engine import fingerprint_engine
+    from app.threat_detection.semantic import semantic_analyzer  # model loads at import
     fingerprint_engine._load_db()
-    logger.info(f"✓ Fingerprint engine loaded ({len(fingerprint_engine.simhash_store)} entries)")
+    fingerprint_engine.set_encoder(semantic_analyzer.model)  # BUG-3 fix
+    logger.info(f"✓ Fingerprint engine loaded ({len(fingerprint_engine.simhash_store)} entries) + encoder attached")
 
     # 4. MOD-2: Response Monitor — verify all regex patterns compiled correctly
     from app.response_security.response_monitor import response_monitor
@@ -36,8 +38,8 @@ async def lifespan(app: FastAPI):
 
     # 5. MOD-4: Semantic Sanitizer — initialise (shares encoder with classifier)
     from app.sanitization.sanitizer import semantic_sanitizer
-    semantic_sanitizer.initialize()
-    logger.info("✓ Semantic sanitizer initialized")
+    semantic_sanitizer.initialize(encoder=semantic_analyzer.model)  # BUG-4 fix
+    logger.info("✓ Semantic sanitizer initialized with encoder")
 
     # 6. Seed ChromaDB attack dataset in background (non-blocking, existing behavior)
     from seed_data.init_dataset import initialize_dataset_background

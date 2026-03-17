@@ -45,9 +45,12 @@ class RiskScorer:
     def calculate_risk(
         self,
         prompt: str,
+        sim_result: tuple[bool, list[str], list[str]] | None = None,  # NEW — pre-computed
         guardrail_results: dict = None,
         classifier_result: ClassifierResult = None,
-        fp_bonus: int = 0,         # MOD-3 fingerprint engine score bonus
+        fp_bonus: int = 0,
+        context_bonus: int = 0,    # Feature 1
+        behavioral_bonus: int = 0, # Feature 3
     ) -> RiskExplanation:
 
         score = 0
@@ -77,12 +80,13 @@ class RiskScorer:
             reasons.extend(pat_reasons)
             attack_types.update(pat_types)
 
-        # ── 2. Semantic similarity (ChromaDB) ─────────────────────────────────
-        sim_suspicious, sim_reasons, sim_types = similarity_detector.detect(prompt)
-        if sim_suspicious:
-            score += self.weights["vector_similarity"]
-            reasons.extend(sim_reasons)
-            attack_types.update(sim_types)
+        # ── 2. Semantic similarity (pre-computed, passed in from gather) ──────
+        if sim_result and not isinstance(sim_result, Exception):
+            sim_suspicious, sim_reasons, sim_types = sim_result
+            if sim_suspicious:
+                score += self.weights["vector_similarity"]
+                reasons.extend(sim_reasons)
+                attack_types.update(sim_types)
 
         # ── 3. Intent classifier ──────────────────────────────────────────────
         if classifier_result and classifier_result.is_malicious:
@@ -115,6 +119,13 @@ class RiskScorer:
             score += fp_bonus
             reasons.append(f"Prompt matches a known jailbreak fingerprint pattern (+{fp_bonus})")
             attack_types.add("Jailbreak Fingerprint Match")
+
+        # ── 6. Context + Behavioral bonuses ──────────────────────────────────
+        score += context_bonus + behavioral_bonus
+        if context_bonus > 0:
+            reasons.append(f"Context-elevated risk (+{context_bonus})")
+        if behavioral_bonus > 0:
+            reasons.append(f"Behavioral pattern detected (+{behavioral_bonus})")
 
         # ── Classification ────────────────────────────────────────────────────
         if score >= 60:
