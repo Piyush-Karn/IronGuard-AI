@@ -113,6 +113,8 @@ class RiskScorer:
             )
             attack_types.add("Policy Bypass")
 
+        base_score = score   # ← ADD HERE: signals only, before any bonuses
+
         # ── 5. MOD-3 Fingerprint Engine bonus ────────────────────────────────
         if fp_bonus > 0:
             score += fp_bonus
@@ -120,7 +122,6 @@ class RiskScorer:
             attack_types.add("Jailbreak Fingerprint Match")
 
         # ── 6. Context + Behavioral bonuses ──────────────────────────────────
-        base_score = score
         score += context_bonus + behavioral_bonus
         if context_bonus > 0:
             reasons.append(f"Context-elevated risk (+{context_bonus})")

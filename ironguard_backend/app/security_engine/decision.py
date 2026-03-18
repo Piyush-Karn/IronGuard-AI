@@ -165,7 +165,7 @@ class DecisionEngineV2:
         raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
         if raw_detection_score >= 60 and not fp_result.is_match:
             # Async background learning
-            asyncio.create_task(self.maybe_learn(detection_prompt))
+            asyncio.create_task(self.maybe_learn(prompt))
 
         return prompt, risk_explanation, action, classifier_result, fp_result, sanitization_result
 
