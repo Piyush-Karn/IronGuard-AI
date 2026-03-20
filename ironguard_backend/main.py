@@ -5,7 +5,8 @@ import asyncio
 
 from app.database.mongodb import connect_to_mongo, close_mongo_connection
 from app.database.chromadb import chroma_manager
-from app.api import endpoints, admin
+from app.api import endpoints, admin, gateway_admin
+from app.gateway import endpoints as gateway_endpoints
 
 
 @asynccontextmanager
@@ -24,6 +25,9 @@ async def lifespan(app: FastAPI):
         await db.threat_logs.create_index([("user_id", 1), ("timestamp", -1)])
         await db.sessions.create_index([("session_id", 1)])
         await db.sessions.create_index([("last_updated", 1)], expireAfterSeconds=86400)
+        await db.gateway_clients.create_index([("client_id", 1)], unique=True)
+        await db.gateway_clients.create_index([("is_active", 1)])
+        await db.gateway_request_log.create_index([("client_id", 1), ("timestamp", -1)])
     
     logger.info("✓ Databases connected + Indexes created")
 
@@ -76,8 +80,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.gateway.middleware import GatewaySignatureMiddleware
+app.add_middleware(GatewaySignatureMiddleware)
+
 app.include_router(endpoints.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(gateway_endpoints.router, prefix="/gateway/v1")
+app.include_router(gateway_admin.router)
 
 
 @app.get("/")
