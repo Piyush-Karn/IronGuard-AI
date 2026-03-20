@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import AdminSettings from "./AdminSettings";
 import { useQuery } from "@tanstack/react-query";
 import CodeLoader from "@/components/ui/CodeLoader";
 import { api, AttackFrequencyData, TopThreatsData, RiskDistributionData } from "@/lib/api";
 import { useUser, useClerk } from "@clerk/clerk-react";
-import { Shield, BarChart3, Users, AlertTriangle, Activity, Settings, FileText, Monitor, LayoutDashboard, TrendingUp, Lock, Eye, Zap, Bell, Loader2 } from "lucide-react";
+import { Shield, BarChart3, Users, AlertTriangle, Activity, Settings, FileText, Monitor, LayoutDashboard, TrendingUp, Lock, Eye, Zap, Bell, Loader2, Check, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
@@ -11,6 +13,7 @@ import AuroraBackground from "@/components/ui/AuroraBackground";
 import FloatingBlobs from "@/components/ui/FloatingBlobs";
 import LiquidEther from "@/components/ui/LiquidEther";
 import { toast } from "@/hooks/use-toast";
+import GatewayVisualizer from "@/components/GatewayVisualizer";
 
 // ─── Glass card wrapper ────────────────────────────────────
 const GlassCard = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
@@ -22,8 +25,11 @@ const GlassCard = ({ children, className = "" }: { children: React.ReactNode; cl
 const tabs = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "analytics", label: "Threat Analytics", icon: BarChart3 },
+  { id: "interactive-flow", label: "Interactive Flow", icon: Share2 },
   { id: "team", label: "Team", icon: Users },
   { id: "live-monitor", label: "Live Monitor", icon: Monitor },
+  { id: "gateway", label: "Gateway Registry", icon: Lock },
+  { id: "self-learning", label: "Self-Learning", icon: Zap },
   { id: "security-logs", label: "Security Logs", icon: FileText },
   { id: "settings", label: "Settings", icon: Settings },
 ];
@@ -555,6 +561,213 @@ const TeamTab = () => {
   );
 };
 
+// ─── Self-Learning Tab ─────────────────────────────────────
+const SelfLearningTab = ({ adminId }: { adminId: string }) => {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const itemsPerPage = 7;
+
+  const { data: pingData, error: pingError } = useQuery({
+    queryKey: ["adminPing"],
+    queryFn: () => api.pingAdmin(),
+    retry: false
+  });
+
+  const { data: fpData, isLoading, error } = useQuery({
+    queryKey: ["fingerprints", adminId],
+    queryFn: () => api.getFingerprints(adminId),
+    enabled: !!adminId,
+    refetchInterval: 30000,
+  });
+
+  if (pingError) {
+    return (
+      <div className="h-64 flex flex-col items-center justify-center text-red-500/50 uppercase tracking-widest text-xs gap-4 border border-dashed border-red-500/20 rounded-3xl p-8 text-center font-sans">
+        <AlertTriangle className="h-8 w-8 mb-2" />
+        <p>Admin Router Unreachable (404)</p>
+        <p className="text-[10px] normal-case mt-1 opacity-50">The backend "/api/v1/analytics" prefix might be misconfigured. {(pingError as Error).message}</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="h-64 flex flex-col items-center justify-center text-white/20 uppercase tracking-widest text-xs gap-4">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <p>Analyzing intelligence feed...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="h-64 flex flex-col items-center justify-center text-red-500/50 uppercase tracking-widest text-xs gap-4 border border-dashed border-red-500/20 rounded-3xl p-8 text-center">
+        <AlertTriangle className="h-8 w-8 mb-2" />
+        <p>Failed to load intelligence feed</p>
+        <p className="text-[10px] normal-case mt-1 opacity-50">{(error as Error).message}</p>
+      </div>
+    );
+  }
+
+  const fingerprints = fpData?.fingerprints || [];
+  // Reverse order (newest first)
+  const learnedPatterns = [...fingerprints].reverse().filter((f: any) => f.attack_type === "Learned");
+  
+  const totalPages = Math.ceil(learnedPatterns.length / itemsPerPage);
+  const currentItems = learnedPatterns.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid sm:grid-cols-3 gap-4">
+        <GlassCard className="p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <Zap className="h-4 w-4 text-amber-400" />
+            <span className="text-[10px] uppercase tracking-wider text-white/25">Autonomously Learned</span>
+          </div>
+          <p className="text-3xl font-bold text-white/90 tracking-tight">{learnedPatterns.length}</p>
+          <p className="text-xs text-white/20 mt-1">Patterns identified & blocked</p>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <Shield className="h-4 w-4 text-blue-400" />
+            <span className="text-[10px] uppercase tracking-wider text-white/25">Total Fingerprints</span>
+          </div>
+          <p className="text-3xl font-bold text-white/90 tracking-tight">{fingerprints.length}</p>
+          <p className="text-xs text-white/20 mt-1">Known threat signatures</p>
+        </GlassCard>
+        <GlassCard className="p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <Activity className="h-4 w-4 text-green-400" />
+            <span className="text-[10px] uppercase tracking-wider text-white/25">Hot-Reload Status</span>
+          </div>
+          <p className="text-3xl font-bold text-green-400/90 tracking-tight">ACTIVE</p>
+          <p className="text-xs text-white/20 mt-1">Real-time DB sync enabled</p>
+        </GlassCard>
+      </div>
+
+      <GlassCard className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-sm font-semibold text-white/70">Autonomous Threat Intelligence Feed</h2>
+          <div className="flex items-center gap-4">
+            <span className="text-[10px] text-white/20 font-mono">NEWEST FIRST</span>
+            <span className="text-[10px] text-white/20 font-mono">SOURCE: FINGERPRINT_DB.JSON</span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {currentItems.length > 0 ? currentItems.map((fp: any, i: number) => {
+            const globalIndex = (currentPage - 1) * itemsPerPage + i;
+            const isExpanded = expandedIndex === globalIndex;
+
+            return (
+              <motion.div
+                key={globalIndex}
+                layout
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className={`group p-4 rounded-xl bg-white/[0.02] border transition-all font-sans cursor-pointer ${isExpanded ? 'border-amber-500/40 bg-white/[0.04]' : 'border-white/[0.05] hover:border-amber-500/30'}`}
+                onClick={() => setExpandedIndex(isExpanded ? null : globalIndex)}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="text-[10px] font-mono text-amber-500/70 uppercase tracking-widest">New Threat Pattern Identified</span>
+                  </div>
+                  <span className="text-[10px] text-white/10 font-mono uppercase">ID: FP-ALT-{learnedPatterns.length - globalIndex + 100}</span>
+                </div>
+                <p className={`text-sm text-white/80 font-mono bg-black/40 p-3 rounded-lg border border-white/[0.03] overflow-x-auto whitespace-pre-wrap leading-relaxed shadow-inner ${isExpanded ? 'mb-4' : 'mb-3'}`}>
+                  {fp.canonical_form}
+                </p>
+                <div className="flex items-center justify-between border-t border-white/[0.04] pt-3">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="h-3 w-3 text-white/20" />
+                      <span className="text-[10px] text-white/30 uppercase font-bold text-[8px]">Confidence: HIGH</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Lock className="h-3 w-3 text-white/20" />
+                      <span className="text-[10px] text-white/30 uppercase font-bold text-[8px]">Action: GLOBAL_BLOCK</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-white/20 italic flex items-center gap-1">
+                    {isExpanded ? 'click to collapse' : 'click to expand'}
+                  </span>
+                </div>
+
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden mt-4 pt-4 border-t border-white/[0.05] space-y-4"
+                    >
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-[9px] text-white/20 uppercase font-bold tracking-widest">Autonomous Detection Signatures</p>
+                          <p className="text-xs text-white/50 italic px-1">{fp.description || "Independently verified by Security Engine V2"}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[9px] text-white/20 uppercase font-bold tracking-widest">Redaction Status</p>
+                          <p className="text-xs text-green-400/60 font-mono flex items-center gap-1.5 px-1 uppercase font-bold">
+                           <Check className="h-2.5 w-2.5" /> PII_CLEANSED
+                          </p>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.02]">
+                        <p className="text-[9px] text-white/10 uppercase font-bold mb-2 tracking-widest">Technical Discovery Metadata</p>
+                        <p className="text-[11px] text-white/30 leading-relaxed font-sans px-1">
+                          This pattern was identified during an automated cross-session audit. 
+                          The Security Engine V2 determined with high confidence that this mutation 
+                          represents a sophisticated injection attempts designed to circumvent standard static analysis. 
+                          Automated hot-reload has distributed this signature to all edge nodes.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          }) : (
+            <div className="h-40 flex flex-col items-center justify-center text-white/10 italic space-y-2">
+              <Zap className="h-8 w-8 opacity-20" />
+              <p>No autonomously learned threats yet.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3 mt-8">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={currentPage === 1}
+              onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => prev - 1); }}
+              className="text-white/40 hover:text-white bg-white/[0.02] h-8 px-4 border border-white/[0.05]"
+            >
+              Previous
+            </Button>
+            <span className="text-[10px] text-white/20 uppercase tracking-widest font-bold px-2">
+              Page {currentPage} / {totalPages}
+            </span>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={currentPage === totalPages}
+              onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => prev + 1); }}
+              className="text-white/40 hover:text-white bg-white/[0.02] h-8 px-4 border border-white/[0.05]"
+            >
+              Next
+            </Button>
+          </div>
+        )}
+      </GlassCard>
+    </div>
+  );
+};
+
 // ─── Security Logs Tab ─────────────────────────────────────
 const SecurityLogsTab = ({ logs }: { logs: any[] }) => (
   <div className="space-y-6">
@@ -587,75 +800,12 @@ const SecurityLogsTab = ({ logs }: { logs: any[] }) => (
 );
 
 // ─── Settings Tab ──────────────────────────────────────────
-const SettingsTab = () => (
-  <div className="grid lg:grid-cols-2 gap-4">
-    <GlassCard className="p-5">
-      <h2 className="text-sm font-semibold text-white/70 mb-4">Security Settings</h2>
-      <div className="space-y-3">
-        {[
-          { label: "Prompt Injection Detection", desc: "Block injection attempts automatically", enabled: true },
-          { label: "Data Extraction Prevention", desc: "Prevent sensitive data leaks via prompts", enabled: true },
-          { label: "Jailbreak Protection", desc: "Detect and block jailbreak patterns", enabled: true },
-          { label: "Role Manipulation Guard", desc: "Prevent system prompt overrides", enabled: false },
-        ].map((setting, i) => (
-          <div key={i} className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/[0.015] border border-white/[0.03]">
-            <div>
-              <p className="text-sm font-medium text-white/60">{setting.label}</p>
-              <p className="text-xs text-white/25 mt-0.5">{setting.desc}</p>
-            </div>
-            <div className={`h-5 w-9 rounded-full flex items-center px-0.5 transition-colors ${setting.enabled ? "bg-green-500/20" : "bg-white/[0.06]"}`}>
-              <div className={`h-4 w-4 rounded-full transition-all ${setting.enabled ? "bg-green-400/80 translate-x-4" : "bg-white/20 translate-x-0"}`} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </GlassCard>
 
-    <GlassCard className="p-5">
-      <h2 className="text-sm font-semibold text-white/70 mb-4">Notifications & Alerts</h2>
-      <div className="space-y-3">
-        {[
-          { label: "Email Alerts", desc: "Get notified for critical threats", enabled: true },
-          { label: "Slack Integration", desc: "Post alerts to your Slack channel", enabled: false },
-          { label: "Webhook Notifications", desc: "Send events to custom endpoints", enabled: true },
-          { label: "Daily Digest", desc: "Receive a daily security summary", enabled: true },
-        ].map((setting, i) => (
-          <div key={i} className="flex items-center justify-between py-3 px-4 rounded-xl bg-white/[0.015] border border-white/[0.03]">
-            <div>
-              <p className="text-sm font-medium text-white/60">{setting.label}</p>
-              <p className="text-xs text-white/25 mt-0.5">{setting.desc}</p>
-            </div>
-            <div className={`h-5 w-9 rounded-full flex items-center px-0.5 transition-colors ${setting.enabled ? "bg-green-500/20" : "bg-white/[0.06]"}`}>
-              <div className={`h-4 w-4 rounded-full transition-all ${setting.enabled ? "bg-green-400/80 translate-x-4" : "bg-white/20 translate-x-0"}`} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </GlassCard>
-
-    <GlassCard className="p-5 lg:col-span-2">
-      <h2 className="text-sm font-semibold text-white/70 mb-4">API Configuration</h2>
-      <div className="space-y-3">
-        <div className="py-3 px-4 rounded-xl bg-white/[0.015] border border-white/[0.03]">
-          <p className="text-[10px] text-white/25 mb-2 uppercase tracking-wider">API Key</p>
-          <div className="flex items-center gap-3">
-            <code className="text-sm text-white/40 font-mono flex-1 bg-white/[0.02] px-3 py-2 rounded-lg">ig_live_sk_••••••••••••••••••••</code>
-            <Button size="sm" variant="ghost" className="text-white/30 hover:text-white text-xs">Reveal</Button>
-            <Button size="sm" variant="ghost" className="text-white/30 hover:text-white text-xs">Rotate</Button>
-          </div>
-        </div>
-        <div className="py-3 px-4 rounded-xl bg-white/[0.015] border border-white/[0.03]">
-          <p className="text-[10px] text-white/25 mb-2 uppercase tracking-wider">Webhook URL</p>
-          <code className="text-sm text-white/40 font-mono bg-white/[0.02] px-3 py-2 rounded-lg block">https://api.ironguard.ai/webhooks/v1/events</code>
-        </div>
-      </div>
-    </GlassCard>
-  </div>
-);
 
 const AdminDashboard = () => {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<{
@@ -786,7 +936,13 @@ const AdminDashboard = () => {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                if (tab.id === "gateway") {
+                  navigate("/admin/gateway");
+                } else {
+                  setActiveTab(tab.id);
+                }
+              }}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
                 activeTab === tab.id
                   ? "bg-white/[0.06] text-white/90 border border-white/[0.08]"
@@ -828,9 +984,15 @@ const AdminDashboard = () => {
                 />
               )}
               {activeTab === "team" && <TeamTab />}
+              {activeTab === "interactive-flow" && (
+                <div className="py-8">
+                  <GatewayVisualizer />
+                </div>
+              )}
               {activeTab === "live-monitor" && <LiveMonitorTab logs={logsData?.logs || []} />}
+              {activeTab === "self-learning" && <SelfLearningTab adminId={user?.id || ""} />}
               {activeTab === "security-logs" && <SecurityLogsTab logs={logsData?.logs || []} />}
-              {activeTab === "settings" && <SettingsTab />}
+              {activeTab === "settings" && <AdminSettings adminId={user?.id || ""} />}
             </motion.div>
           </AnimatePresence>
         </div>

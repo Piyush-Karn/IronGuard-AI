@@ -14,6 +14,7 @@ import ShinyText from "@/components/ui/ShinyText";
 import FloatingBlobs from "@/components/ui/FloatingBlobs";
 import GradualBlur from "@/components/ui/GradualBlur";
 import DecryptedText from "@/components/ui/DecryptedText";
+import GatewayVisualizer from "@/components/GatewayVisualizer";
 
 const typingPhrases = [
   "Detecting Prompt Injection",
@@ -438,46 +439,9 @@ const Index = () => {
                <DecryptedText text="How It Works" speed={50} animateOn="view" characters="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*" />
              </motion.h2>
           </motion.div>
-          <ChromaGrid
-            items={[
-              {
-                image: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=400&h=300&fit=crop",
-                title: "User Prompt",
-                subtitle: "Input received and queued for security analysis",
-                handle: "STEP 01",
-                borderColor: "#7df9ff",
-                gradient: "linear-gradient(145deg, rgba(125,249,255,0.08), rgba(0,0,0,0.8))",
-              },
-              {
-                image: "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=400&h=300&fit=crop",
-                title: "IronGuard Security Filter",
-                subtitle: "Multi-layer scan across all known threat vectors",
-                handle: "STEP 02",
-                borderColor: "#818cf8",
-                gradient: "linear-gradient(165deg, rgba(129,140,248,0.08), rgba(0,0,0,0.8))",
-              },
-              {
-                image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=400&h=300&fit=crop",
-                title: "Threat Detection Engine",
-                subtitle: "AI-powered analysis identifies malicious patterns",
-                handle: "STEP 03",
-                borderColor: "#f59e0b",
-                gradient: "linear-gradient(180deg, rgba(245,158,11,0.08), rgba(0,0,0,0.8))",
-              },
-              {
-                image: "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=400&h=300&fit=crop",
-                title: "Safe AI Response",
-                subtitle: "Verified clean output delivered to the user",
-                handle: "STEP 04",
-                borderColor: "#10b981",
-                gradient: "linear-gradient(210deg, rgba(16,185,129,0.08), rgba(0,0,0,0.8))",
-              },
-            ]}
-            radius={350}
-            damping={0.4}
-            fadeOut={0.5}
-            ease="power3.out"
-          />
+          <div className="mt-12">
+            <GatewayVisualizer />
+          </div>
         </div>
       </section>
 

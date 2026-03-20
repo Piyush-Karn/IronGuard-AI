@@ -1,11 +1,18 @@
 from datetime import datetime, timedelta
+import logging
 from fastapi import APIRouter, Depends, HTTPException
+
+logger = logging.getLogger(__name__)
 from app.database.mongodb import get_database
 from app.api.auth import RoleChecker
 from app.models.schemas import Role, UserRoleUpdate
 from app.monitoring.user_manager import user_manager
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(tags=["analytics"])
+
+@router.get("/ping")
+async def ping():
+    return {"status": "ok", "from": "admin"}
 
 # Dependency to ensure only admins can access these routes
 admin_only = Depends(RoleChecker([Role.ADMIN]))
@@ -249,3 +256,61 @@ async def get_logs(limit: int = 50):
             log["timestamp"] = log["timestamp"].isoformat()
             
     return {"logs": logs}
+    
+
+@router.get("/fingerprints", dependencies=[admin_only])
+async def get_fingerprints():
+    """
+    Fetch all known and autonomously learned threat fingerprints.
+    """
+    from app.fingerprinting.fingerprint_engine import FINGERPRINT_DB_PATH
+    import json
+    import os
+    
+    logger.info(f"Fetching fingerprints from: {FINGERPRINT_DB_PATH.absolute()}")
+    
+    if not FINGERPRINT_DB_PATH.exists():
+        logger.warning(f"Fingerprint DB not found at {FINGERPRINT_DB_PATH.absolute()}")
+        return {"fingerprints": [], "warning": "Database file not found"}
+        
+    try:
+        content = FINGERPRINT_DB_PATH.read_text(encoding="utf-8")
+        data = json.loads(content)
+        jailbreaks = data.get("jailbreaks", [])
+        logger.info(f"Successfully loaded {len(jailbreaks)} fingerprints")
+        return {"fingerprints": jailbreaks}
+    except Exception as e:
+        logger.error(f"Failed to read fingerprint DB: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to read fingerprints: {str(e)}")
+
+
+from app.security_engine.key_vault import key_vault
+from app.models.schemas import ProviderKeyUpdate, ProviderKeyResponse
+from typing import List
+
+@router.post("/keys", dependencies=[admin_only])
+async def store_provider_key(update: ProviderKeyUpdate):
+    """
+    Securely store or update an AI provider API key.
+    """
+    success = await key_vault.set_key(update.provider, update.api_key)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to store provider key")
+    return {"message": f"Successfully stored key for {update.provider}"}
+
+@router.get("/keys", response_model=List[ProviderKeyResponse], dependencies=[admin_only])
+async def list_provider_keys():
+    """
+    List all configured providers (keys are never shown).
+    """
+    return await key_vault.list_keys()
+
+@router.delete("/keys/{provider}", dependencies=[admin_only])
+async def delete_provider_key(provider: str):
+    """
+    Revoke/delete a provider key.
+    """
+    success = await key_vault.delete_key(provider)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"No key found for provider {provider}")
+    return {"message": f"Successfully revoked key for {provider}"}

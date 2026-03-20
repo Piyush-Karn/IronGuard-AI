@@ -109,10 +109,38 @@ export interface LogsResponse {
   logs: LogEntry[];
 }
 
-const API_BASE_URL = "http://localhost:8000/api/v1";
+export interface GatewayClient {
+  client_id: string;
+  client_name: string;
+  is_active: boolean;
+  created_at: string;
+  last_used: string | null;
+  request_count: number;
+  allowed_rpm: number;
+  created_by: string;
+}
+
+export interface RegisterClientResponse {
+  client_id: string;
+  client_name: string;
+  secret: string;
+  warning: string;
+}
+
+export interface GatewayClientsResponse {
+  clients: GatewayClient[];
+}
+
+const API_BASE_URL = "http://localhost:8000";
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  // If endpoint doesn't start with /api/v1 or /gateway/v1 or /gateway/admin, prefix with /api/v1
+  let path = endpoint;
+  if (!endpoint.startsWith("/api/v1") && !endpoint.startsWith("/gateway")) {
+    path = `/api/v1${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  }
+
+  const url = `${API_BASE_URL}${path}`;
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -131,13 +159,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   scanPrompt: (data: PromptRequest) => 
-    request<ScanResponse>("/scan_prompt", {
+    request<ScanResponse>("/api/v1/scan_prompt", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
   processPrompt: (data: PromptRequest) =>
-    request<ScanResponse>("/process_prompt", {
+    request<ScanResponse>("/api/v1/process_prompt", {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -206,13 +234,54 @@ export const api = {
       headers: { "X-User-Id": userId }
     }),
 
-  getTopPolicyViolations: (userId: string) =>
-    request<TopPolicyViolations>("/analytics/metrics/top-policy-violations", {
+  pingAdmin: () => request<{ status: string, from: string }>("/analytics/ping"),
+
+  getTopPolicyViolations: (adminId: string) => 
+    request<Record<string, number>>("/analytics/metrics/top-policy-violations", { 
+      headers: { "X-User-Id": adminId } 
+    }),
+  getLogs: (adminId: string) => request<{ logs: any[] }>("/analytics/logs", { headers: { "X-User-Id": adminId } }),
+  getFingerprints: (adminId: string) => request<{ fingerprints: any[] }>("/analytics/fingerprints", { headers: { "X-User-Id": adminId } }),
+
+  storeProviderKey: (adminId: string, provider: string, apiKey: string) =>
+    request<{ message: string }>("/analytics/keys", {
+      method: "POST",
+      body: JSON.stringify({ provider, api_key: apiKey }),
+      headers: { "X-User-Id": adminId, "Content-Type": "application/json" }
+    }),
+
+  listProviderKeys: (adminId: string) =>
+    request<any[]>("/analytics/keys", { headers: { "X-User-Id": adminId } }),
+
+  deleteProviderKey: (adminId: string, provider: string) =>
+    request<{ message: string }>(`/analytics/keys/${provider}`, {
+      method: "DELETE",
+      headers: { "X-User-Id": adminId }
+    }),
+
+  // --- Gateway Client Management ---
+  registerGatewayClient: (userId: string, data: { client_name: string, allowed_rpm?: number }) =>
+    request<RegisterClientResponse>("/gateway/admin/clients", {
+      method: "POST",
+      headers: { "X-User-Id": userId },
+      body: JSON.stringify(data),
+    }),
+
+  getGatewayClients: (userId: string) =>
+    request<GatewayClientsResponse>("/gateway/admin/clients", {
       headers: { "X-User-Id": userId }
     }),
 
-  getLogs: (userId: string, limit: number = 50) =>
-    request<LogsResponse>(`/analytics/logs?limit=${limit}`, {
+  rotateGatewaySecret: (userId: string, clientId: string) =>
+    request<RegisterClientResponse>(`/gateway/admin/clients/${clientId}/rotate`, {
+      method: "POST",
       headers: { "X-User-Id": userId }
+    }),
+
+  revokeGatewayClient: (userId: string, clientId: string, reason: string) =>
+    request<{message: string}>(`/gateway/admin/clients/${clientId}`, {
+      method: "DELETE",
+      headers: { "X-User-Id": userId },
+      body: JSON.stringify({ reason }),
     }),
 };

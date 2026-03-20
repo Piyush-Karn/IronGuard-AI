@@ -23,13 +23,25 @@ IronGuard is organized into four primary modules:
   - Features an **Autonomous Learning** path that remembers new threats.
 
 - **MOD-4: Semantic Sanitization Engine**
-  - Managed by `app/sanitization/`.
-  - Neutralizes suspicious prompts using LLM-based rewriting.
-  - Verifies **Intent Preservation** using embedding similarity (threshold 0.70).
+  - Managed by `app/sanitization/sanitizer.py`.
+  - Neutralizes suspicious prompts (risk score 30-59) using **optional LLM-based rewriting** (Gemini Flash).
+  - Verifies **Intent Preservation** using embedding similarity (threshold 0.50).
+
+- **MOD-5: PII Redactor (Local/High-Speed)**
+  - Managed by `app/sanitization/pii_redactor.py`.
+  - **100% Local Regex/Rule-based**: Detects and redacts emails, phone numbers, and names without LLM calls.
+  - **Learning Path Security**: Used by MOD-3 to strip PII before storing threat signatures in the database.
+  - **Privacy Enforcement**: Acts as a final "safety net" pass for all LLM-sanitized prompts.
+
+- **MOD-6: Secure Key Vault (Keyless AI)**
+  - Managed by `app/security_engine/key_vault.py`.
+  - Securely stores and encrypts AI provider API keys using **AES-256 (Fernet)**.
+  - Enables "Keyless AI" behavior where the gateway handles credentials on behalf of employees.
 
 ### 2. Decision Engine v2
 - **NFKC Normalization**: Flattens homoglyphs and hidden characters at ingress.
-- **Hybrid Pipeline**: Runs Pattern Detection, Semantic Analysis, and Fingerprinting in parallel.
+- **Hybrid Pipeline**: Runs Pattern Detection, Semantic Analysis, Intent Classification, and Fingerprinting in parallel.
+- **Dynamic Risk Scoring**: Aggregates signals from all detection layers into a final base score (0-100).
 - **Context Awareness**: Incorporates multi-turn conversation history into detection prompts.
 
 ### 3. User Behavior Monitor
@@ -37,8 +49,9 @@ IronGuard is organized into four primary modules:
 - **Session Enforcement**: Automatically terminates sessions after 3+ high-risk attempts.
 
 ### 4. Data Layer
-- **MongoDB**: Persistent storage for security events, threat logs, and user metadata.
+- **MongoDB**: Persistent storage for security events, threat logs, user metadata, and **encrypted provider keys**.
 - **ChromaDB**: High-speed vector search for semantic analysis and jailbreak fingerprinting.
+- **Fingerprint DB**: Hot-reloading JSON store for autonomous threat signatures.
 
 ## Data Flow Diagram
 
@@ -63,6 +76,8 @@ graph TD
     E -->|Malicious| F[Block and Log Threat]
     E -->|Suspicious| G[MOD-4 Semantic Sanitizer]
     E -->|Safe| H[MOD-1 LLM Proxy]
+    
+    V[MOD-5 Key Vault] -.->|API Keys| H
 
     G --> H
 
@@ -73,8 +88,9 @@ graph TD
 
 ## Security Rationale: Defense in Depth
 By combining these modules, IronGuard provides multiple layers of protection:
-- **Fingerprinting** catches known attacks instantly.
+- **Fingerprinting** catches known attacks instantly with zero LLM cost.
 - **Intent Classification** catches novel attacks by understanding meaning.
-- **Sanitization** neutralizes threats without blocking legitimate work.
-- **Response Monitoring** prevents data leakage from the LLM itself.
+- **Local Sanitization** ensures data privacy (PII stripping) without external calls.
+- **Semantic Sanitization** neutralizes complex framing threats using intelligent rewrites.
+- **Response Monitoring** prevents data leakage from the LLM itself with regex-speed checks.
 

@@ -9,7 +9,11 @@ MongoDB is used as the primary database for long-term storage of security events
 ### Collections:
 1.  **`threat_logs`**: Stores every security event processed by the engine (timestamp, user_id, action, risk_score, etc.).
 2.  **`trust_scores`**: Manages granular reputation data and roles for every user.
-3.  **`fingerprints` (Optional)**: If using persistent learning, this stores known attack signatures.
+3.  **`provider_keys`**: Stores AES-256 encrypted API keys for LLM providers (Gemini, Mistral).
+4.  **`gateway_clients`**: Registry of external backend applications and their HMAC secrets.
+
+### Local JSON Store:
+- **`fingerprint_db.json`**: A high-speed, hot-reloading JSON store for MOD-3 threat signatures. IronGuard autonomously appends new jailbreak patterns to this file during the "Self-Learning" process.
 
 ### Access Layer:
 - Implementation: `app/database/mongodb.py`

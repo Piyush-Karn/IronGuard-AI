@@ -147,13 +147,33 @@ class ProxyError:
 
 
 # ── LLM Proxy ─────────────────────────────────────────────────────────────────
+from app.security_engine.key_vault import key_vault
+
 class LLMProxy:
     """Module-level singleton; import `llm_proxy` from this module."""
 
     def __init__(self):
-        self._gemini_key = os.getenv("GEMINI_API_KEY", "")
-        self._mistral_key = os.getenv("MISTRAL_API_KEY", "")
+        # Static keys from env as fallback
+        self._gemini_key_env = os.getenv("GEMINI_API_KEY", "")
+        self._mistral_key_env = os.getenv("MISTRAL_API_KEY", "")
         self.rate_limiter = TokenBucketRateLimiter()
+
+    async def _get_provider_key(self, provider: str) -> str:
+        """
+        Retrieves the provider API key.
+        Priority: 1. KeyVault (MongoDB) -> 2. Environment Variable
+        """
+        # 1. Check Vault (Encrypted DB)
+        vault_key = await key_vault.get_key(provider)
+        if vault_key:
+            return vault_key
+            
+        # 2. Fallback to Env
+        if provider == "gemini":
+            return self._gemini_key_env
+        elif provider == "mistral":
+            return self._mistral_key_env
+        return ""
 
     async def route_request(
         self,
@@ -172,9 +192,12 @@ class LLMProxy:
             logger.warning(f"[{request_id}] Prompt truncated ({len(prompt)} → {MAX_PROMPT_CHARS} chars)")
             prompt = prompt[:MAX_PROMPT_CHARS]
 
-        # Resolve provider order
+        # Resolve provider order (Check keys dynamically)
+        gemini_key = await self._get_provider_key("gemini")
+        mistral_key = await self._get_provider_key("mistral")
+
         if provider == "auto" or provider not in ("gemini", "mistral"):
-            primary, fallback = ("gemini", "mistral") if self._gemini_key else ("mistral", "gemini")
+            primary, fallback = ("gemini", "mistral") if gemini_key else ("mistral", "gemini")
         elif provider == "gemini":
             primary, fallback = "gemini", "mistral"
         else:
@@ -193,8 +216,9 @@ class LLMProxy:
 
         # ── Fallback on transient errors ──────────────────────────────────────
         if isinstance(result, ProxyError) and result.code not in (400, 401, 403):
-            fallback_key = self._gemini_key if fallback == "gemini" else self._mistral_key
-            if fallback_key:
+            # Check fallback key availability
+            current_fallback_key = gemini_key if fallback == "gemini" else mistral_key
+            if current_fallback_key:
                 logger.info(f"[{request_id}] Provider {primary} failed ({result.code}), trying {fallback}")
                 result = await self._call_with_retry(fallback, wrapped, max_tokens, temperature, request_id)
 
@@ -237,10 +261,11 @@ class LLMProxy:
         return ProxyError(code=503, message="All retries exhausted.", request_id=request_id)
 
     async def _call_gemini(self, prompt, max_tokens, temperature, request_id) -> "ProxyResponse | ProxyError":
-        if not self._gemini_key:
+        api_key = await self._get_provider_key("gemini")
+        if not api_key:
             return _simulate("gemini", GEMINI_MODEL, prompt, request_id)
 
-        url = f"{GEMINI_BASE_URL}?key={self._gemini_key}"
+        url = f"{GEMINI_BASE_URL}?key={api_key}"
         payload = {
             "system_instruction": {"parts": [{"text": SECURITY_PREAMBLE}]},
             "contents": [{"parts": [{"text": prompt}]}],
@@ -270,11 +295,12 @@ class LLMProxy:
             return ProxyError(code=500, message=str(e), request_id=request_id)
 
     async def _call_mistral(self, prompt, max_tokens, temperature, request_id) -> "ProxyResponse | ProxyError":
-        if not self._mistral_key:
+        api_key = await self._get_provider_key("mistral")
+        if not api_key:
             return _simulate("mistral", MISTRAL_MODEL, prompt, request_id)
 
         headers = {
-            "Authorization": f"Bearer {self._mistral_key}",
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
         payload = {

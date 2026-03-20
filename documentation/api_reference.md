@@ -93,6 +93,46 @@ Returns the top 5 reasons for security interventions (e.g., "Prompt Injection", 
 Fetches a chronological list of recent `threat_logs`.
 - **Parameters**: `limit` (default: 50).
 
+### `GET /api/v1/analytics/fingerprints`
+Retrieves all threat signatures from the hot-reloading `fingerprint_db.json`, including autonomously learned patterns.
+
+### `POST /api/v1/analytics/keys`
+Securely stores or updates an AI provider's API key.
+- **Body**: `{"provider": "gemini", "api_key": "..."}`
+
+### `GET /api/v1/analytics/keys`
+Lists all configured provider keys (masked). Returns `provider`, `is_active`, and `updated_at`.
+
+### `DELETE /api/v1/analytics/keys/{provider}`
+Revokes and deletes a stored API key.
+
+---
+
+## Gateway Registry API
+
+Endpoints for managing external client applications (HMAC-based).
+
+### `POST /gateway/admin/clients`
+Registers a new backend client.
+- **Body**: `{"client_name": "HR-Chatbot", "allowed_rpm": 100}`
+- **Response**: Returns `client_id` and the one-time `secret` (HMAC key).
+
+### `GET /gateway/admin/clients`
+Lists all registered clients with their status, request counts, and last seen timestamps.
+
+---
+
+## Gateway Client API (External Integration)
+
+These endpoints are for external backend applications. They require **HMAC-SHA256** signatures.
+
+### `POST /gateway/v1/prompt`
+Full security pipeline + dynamic LLM forwarding.
+See the **[Client Integration Guide](./client_integration_guide.md)** for signature details and code examples.
+
+### `POST /gateway/v1/scan`
+Risk assessment only. Returns a detailed security report without contacting the LLM.
+
 ---
 
 ## Interactive Docs

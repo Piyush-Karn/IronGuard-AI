@@ -14,7 +14,9 @@ IronGuard is a state-of-the-art security middleware platform designed to protect
 - **Production-Ready Proxy**: Integrated support for Gemini Flash and Mistral with rate limiting and failover.
 - **Response Redaction**: Automatically detects and redacts secret leakage (API keys, PII) in LLM outputs.
 - **Real-time Analytics**: Visual dashboards for tracking threat trends, user behavior, and security scores.
-- **Sub-ms Fingerprinting**: XOR Hamming distance based deduplication of known jailbreak attempts.
+- **MOD-3 Autonomous Learning**: XOR Hamming distance based deduplication of known jailbreak attempts with self-healing feedback.
+- **Secure Key Vault**: AES-256 encrypted "Keyless AI" architecture for provider credential management.
+- **Gateway Visualizer**: Interactive real-time pipeline visualization for security auditing.
 
 ## Getting Started
 
@@ -25,6 +27,8 @@ IronGuard is a state-of-the-art security middleware platform designed to protect
 ## Documentation Index
 
 - [Architecture Overview](./documentation/architecture.md)
+- [Feature Deep Dive (Technical Details)](./documentation/deep_dive.md)
+- [Client Integration Guide](./documentation/client_integration_guide.md)
 - [Detection Layers Deep Dive](./documentation/detection_layers.md)
 - [API Reference](./documentation/api_reference.md)
 - [Database Guide](./documentation/database_guide.md)

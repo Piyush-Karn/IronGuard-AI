@@ -9,6 +9,7 @@ import { api } from "./lib/api";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminGateway from "./pages/AdminGateway";
 import UserAnalyser from "./pages/UserAnalyser";
 import NotFound from "./pages/NotFound";
 
@@ -92,6 +93,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardRedirect /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminDashboard /></AdminRoute></ProtectedRoute>} />
+          <Route path="/admin/gateway" element={<ProtectedRoute><AdminRoute><AdminGateway /></AdminRoute></ProtectedRoute>} />
           <Route path="/user/analyser" element={<ProtectedRoute><UserAnalyser /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -86,3 +86,12 @@ class AttackPattern(BaseModel):
     pattern_text: str
     attack_type: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class ProviderKeyUpdate(BaseModel):
+    provider: str  # gemini, mistral, openai, etc.
+    api_key: str
+
+class ProviderKeyResponse(BaseModel):
+    provider: str
+    is_active: bool
+    updated_at: datetime

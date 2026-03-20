@@ -84,7 +84,7 @@ from app.gateway.middleware import GatewaySignatureMiddleware
 app.add_middleware(GatewaySignatureMiddleware)
 
 app.include_router(endpoints.router, prefix="/api/v1")
-app.include_router(admin.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1/analytics")
 app.include_router(gateway_endpoints.router, prefix="/gateway/v1")
 app.include_router(gateway_admin.router)
 

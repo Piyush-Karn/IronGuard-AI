@@ -26,31 +26,36 @@ Managed by `app/threat_detection/semantic.py`.
 ## Layer 3: Intent Classifier (Contextual AI Layer)
 Managed by `app/threat_detection/intent_classifier.py`.
 - **Transformer-based**: Utilizes a `protectai/deberta-v3-base-prompt-injection-v2` model.
-- **Contextual Awareness**: Analyzes underlying intent rather than just keywords, catching roleplay and social engineering.
+- **Contextual Awareness**: Analyzes underlying intent rather than just keywords, catching roleplay, social engineering, and indirect injections.
+- **Confidence Calibration**: Scores from the classifier are mapped through a non-linear scaling function to ensure high-confidence threats are weighted appropriately.
 
 ---
 
-## Layer 4: Fingerprinting Engine (MOD-3)
+## Layer 4: Fingerprinting Engine (MOD-3) — 100% Local
 Managed by `app/fingerprinting/`.
-- **Exact & Near-Match**:
-  - **SimHash**: Handles minor character variations.
-  - **MinHash LSH**: High-recall overlap detection.
-- **Self-Learning**: New malicious prompts identified by other layers are automatically learned (redacted) into the fingerprint DB.
+- **Exact & Near-Match**: 
+  - **SimHash**: Handles minor character variations (e.g., "Hello" vs "Hell0").
+  - **MinHash LSH**: High-recall overlap detection for long, complex jailbreak payloads.
+- **Autonomous Learning (Privacy First)**: New malicious prompts identified by other layers (with 80+ risk score) are automatically sanitized via **MOD-5 PII Redactor**. This process is **100% Local (Regex/Rule-based)**. No LLM call is made during the learning phase, ensuring zero data leakage and zero extra cost.
 
 ---
 
-## The Weighting System
+## The Weighting System (Decision Engine v2)
 
-The **Risk Scorer** aggregates signals from all layers:
+The **Risk Scorer** incorporates a sophisticated weighted aggregation of all detection signals. The final score is not just a sum, but a calibrated reputation signal.
 
-| Signal | Base Weight | Dynamic Max |
-| :--- | :--- | :--- |
-| **Regex Hard Block** | 100 | 100 |
-| **Intent Classifier (Malicious)** | 60 | 90 |
-| **Fingerprint Match (MOD-3)** | 40 | 80 |
-| **Semantic Similarity Hit** | 35 | 70 |
+| Signal | Base Weight | Multiplier | Dynamic Max |
+| :--- | :--- | :--- | :--- |
+| **Regex Hard Block** | 100 | x1.0 | 100 |
+| **Intent Classifier (Malicious)** | 65 | x1.2 | 95 |
+| **Fingerprint Match (LSH)** | 45 | x1.1 | 85 |
+| **Semantic Similarity (Chroma)** | 35 | x1.0 | 75 |
+| **User History Penalty** | +15 | x1.0 | +30 |
 
 ### Classification Thresholds:
-- **0–29**: `Safe` (Passes to LLM Proxy).
+- **0–29**: `Safe` (Passes to LLM Proxy Layer).
 - **30–59**: `Suspicious` (Triggers MOD-4 Semantic Sanitization).
-- **60–100**: `Malicious` (Blocked immediately).
+- **60–100**: `Malicious` (Blocked immediately via 403 response).
+
+### The "Shield" Mechanism
+If any layer reports a 100% confidence "Hard Block" (e.g., a regex for the internal system prompt), the Decision Engine enters **Emergency Block Mode**, skipping all other calculations to minimize latency and ensure zero-day protection.
