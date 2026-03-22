@@ -21,3 +21,4 @@ rapidfuzz==3.9.3
 datasketch>=1.6.5
 # anthropic removed — using free providers (Gemini, Groq) via httpx
 cryptography>=42.0.0
+passlib==1.7.4

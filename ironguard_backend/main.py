@@ -2,6 +2,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
+import os
+import time
+import logging
+print("\n" + "="*50 + "\n🚀 IRON_GUARD BACKEND V10 STARTING\n" + "="*50 + "\n")
+from datetime import datetime
 
 from app.database.mongodb import connect_to_mongo, close_mongo_connection
 from app.database.chromadb import chroma_manager
@@ -28,8 +33,35 @@ async def lifespan(app: FastAPI):
         await db.gateway_clients.create_index([("client_id", 1)], unique=True)
         await db.gateway_clients.create_index([("is_active", 1)])
         await db.gateway_request_log.create_index([("client_id", 1), ("timestamp", -1)])
+        
+        # New: Invite indexes
+        await db.invites.create_index([("user_id", 1), ("status", 1)])
+        await db.invites.create_index([("expires_at", 1)], expireAfterSeconds=0) # Auto-delete expired
+        
+        # Seed System Dashboard Client (MOD-6 Gateway Enforcement)
+        import os
+        from app.gateway.signing import encrypt_secret
+        dashboard_id = "SYSTEM_DASHBOARD"
+        dashboard_secret = os.getenv("SYSTEM_DASHBOARD_SECRET", "default_secret_change_me")
+        
+        # Nuclear Re-seed: Ensure field names are correct (encrypted_secret, request_count)
+        await db.gateway_clients.delete_one({"client_id": dashboard_id})
+        await db.gateway_clients.insert_one({
+            "client_id": dashboard_id,
+            "encrypted_secret": encrypt_secret(dashboard_secret),
+            "client_name": "IronGuard Internal Dashboard",
+            "is_active": True,
+            "request_count": 0,
+            "created_at": datetime.utcnow()
+        })
+        logger.info(f"🚀 SYSTEM CLIENT RE-SEEDED: {dashboard_id}")
+        
+        # Dev Convenience: Clear verification lockouts on restart
+        await db.verification_attempts.delete_many({})
+        await db.lockouts.delete_many({})
+        logger.info("🔓 Lockouts cleared for development test")
     
-    logger.info("✓ Databases connected + Indexes created")
+    logger.info("✓ Databases connected + Indexes created + System Client provisioned")
 
     # 2. Intent Classifier — heavy model, warm up in background (non-blocking)
     from app.threat_detection.intent_classifier import intent_classifier
@@ -72,16 +104,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from app.gateway.middleware import GatewaySignatureMiddleware
+app.add_middleware(GatewaySignatureMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-from app.gateway.middleware import GatewaySignatureMiddleware
-app.add_middleware(GatewaySignatureMiddleware)
 
 app.include_router(endpoints.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1/analytics")

@@ -69,8 +69,15 @@ class GatewayClientRegistry:
         """
         client = await self.get_client(client_id)
         if not client:
+            logger.warning(f"Gateway verify failed: Client {client_id} not found or inactive")
             return None
-        return decrypt_secret(client["encrypted_secret"])
+            
+        secret = client.get("encrypted_secret")
+        if not secret:
+            logger.error(f"Gateway CRITICAL: Client {client_id} missing 'encrypted_secret' field in DB")
+            return None
+            
+        return decrypt_secret(secret)
 
     async def record_usage(self, client_id: str) -> None:
         """Fire-and-forget usage tracking."""

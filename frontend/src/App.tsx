@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import VerificationWall from "./components/VerificationWall";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { SignedIn, SignedOut, useUser } from "@clerk/clerk-react";
@@ -94,7 +95,7 @@ const App = () => (
           <Route path="/dashboard" element={<ProtectedRoute><DashboardRedirect /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminDashboard /></AdminRoute></ProtectedRoute>} />
           <Route path="/admin/gateway" element={<ProtectedRoute><AdminRoute><AdminGateway /></AdminRoute></ProtectedRoute>} />
-          <Route path="/user/analyser" element={<ProtectedRoute><UserAnalyser /></ProtectedRoute>} />
+          <Route path="/user/analyser" element={<ProtectedRoute><VerificationWall><UserAnalyser /></VerificationWall></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -133,6 +133,51 @@ export interface GatewayClientsResponse {
 
 const API_BASE_URL = "http://localhost:8000";
 
+// --- Gateway Credentials for the Internal Dashboard ---
+// In a real production app, these would be fetched once after login or set via env.
+const SYSTEM_CLIENT_ID = "SYSTEM_DASHBOARD";
+const SYSTEM_CLIENT_SECRET = "35_1fb20d6f4a8b7c2e_dashboard_secret";
+
+async function generateGatewayHeaders(clientId: string, clientSecret: string, payload: string) {
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  
+  // 1. Hash the body (payload) with SHA-256
+  const encoder = new TextEncoder();
+  const bodyData = encoder.encode(payload);
+  const hashBuffer = await window.crypto.subtle.digest("SHA-256", bodyData);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const bodyHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+
+  // 2. Build canonical message: timestamp + \n + client_id + \n + body_hash
+  const msg = `${timestamp}\n${clientId}\n${bodyHash}`;
+  const msgData = encoder.encode(msg);
+  const keyData = encoder.encode(clientSecret);
+
+  // 3. HMAC-SHA256
+  const key = await window.crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signatureBuffer = await window.crypto.subtle.sign(
+    "HMAC",
+    key,
+    msgData
+  );
+
+  const signatureArray = Array.from(new Uint8Array(signatureBuffer));
+  const signatureHex = signatureArray.map(b => b.toString(16).padStart(2, "0")).join("");
+
+  return {
+    "X-IG-Client-Id": clientId,
+    "X-IG-Timestamp": timestamp,
+    "X-IG-Signature": signatureHex,
+  };
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   // If endpoint doesn't start with /api/v1 or /gateway/v1 or /gateway/admin, prefix with /api/v1
   let path = endpoint;
@@ -158,18 +203,42 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
-  scanPrompt: (data: PromptRequest) => 
-    request<ScanResponse>("/api/v1/scan_prompt", {
+  // --- Secure Gateway AI Access ---
+  scanPrompt: async (data: PromptRequest) => {
+    const payload = JSON.stringify(data);
+    const gatewayHeaders = await generateGatewayHeaders(SYSTEM_CLIENT_ID, SYSTEM_CLIENT_SECRET, payload);
+    return request<ScanResponse>("/gateway/v1/scan", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: payload,
+      headers: gatewayHeaders,
+    });
+  },
+
+  processPrompt: async (data: PromptRequest) => {
+    const payload = JSON.stringify(data);
+    const gatewayHeaders = await generateGatewayHeaders(SYSTEM_CLIENT_ID, SYSTEM_CLIENT_SECRET, payload);
+    return request<ScanResponse>("/gateway/v1/process", {
+      method: "POST",
+      body: payload,
+      headers: gatewayHeaders,
+    });
+  },
+
+  // --- Auth & Verification ---
+  verifySecret: (secret: string, userId: string) =>
+    request<{ status: string, message: string }>("/api/v1/auth/verify-secret", {
+        method: "POST",
+        headers: { "X-User-Id": userId },
+        body: JSON.stringify({ secret }),
     }),
 
-  processPrompt: (data: PromptRequest) =>
-    request<ScanResponse>("/api/v1/process_prompt", {
-      method: "POST",
-      body: JSON.stringify(data),
+  createUserInvite: (userId: string, adminId: string) =>
+    request<any>(`/analytics/users/${userId}/invite`, {
+        method: "POST",
+        headers: { "X-User-Id": adminId },
     }),
 
+  // --- Analytics & Admin ---
   getAttackFrequency: (userId: string) => 
     request<AttackFrequencyData>("/analytics/attack-frequency", {
       headers: { "X-User-Id": userId }
@@ -196,7 +265,7 @@ export const api = {
     if (fullName) params.append("full_name", fullName);
     const query = params.toString() ? `?${params.toString()}` : "";
     
-    return request<UserRoleResponse>(`/auth/me${query}`, {
+    return request<UserRoleResponse & { is_verified: boolean }>(`/auth/me${query}`, {
       headers: { "X-User-Id": userId },
     });
   },
@@ -213,9 +282,10 @@ export const api = {
       headers: { "X-User-Id": userId }
     }),
 
-  unblockUser: (userId: string) => 
+  unblockUser: (adminId: string, userId: string) => 
     request<{status: string, message: string}>("/unblock", {
       method: "POST",
+      headers: { "X-User-Id": adminId, "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId }),
     }),
 

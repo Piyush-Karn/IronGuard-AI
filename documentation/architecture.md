@@ -38,6 +38,11 @@ IronGuard is organized into four primary modules:
   - Securely stores and encrypts AI provider API keys using **AES-256 (Fernet)**.
   - Enables "Keyless AI" behavior where the gateway handles credentials on behalf of employees.
 
+- **MOD-7: Gateway Signature Layer (HMAC-SHA256)**
+  - Managed by `app/gateway/middleware.py` and `app/gateway/signing.py`.
+  - Enforces cryptographic authentication for all `/gateway/v1/` requests.
+  - Prevents spoofing and replay attacks using a deterministic canonical signing message.
+
 ### 2. Decision Engine v2
 - **NFKC Normalization**: Flattens homoglyphs and hidden characters at ingress.
 - **Hybrid Pipeline**: Runs Pattern Detection, Semantic Analysis, Intent Classification, and Fingerprinting in parallel.
@@ -57,8 +62,11 @@ IronGuard is organized into four primary modules:
 
 ```mermaid
 graph TD
-    A[User Prompt] --> B[NFKC Normalization]
-
+    A1[External Gateway Prompt] --> B1[HMAC Signature Check]
+    B1 -->|Success| B[NFKC Normalization]
+    
+    A2[Internal Dashboard Prompt] --> B
+    
     B --> C[Parallel Detection Pipeline]
 
     C --> C1[Layer 1: Pattern Detector]
@@ -77,7 +85,7 @@ graph TD
     E -->|Suspicious| G[MOD-4 Semantic Sanitizer]
     E -->|Safe| H[MOD-1 LLM Proxy]
     
-    V[MOD-5 Key Vault] -.->|API Keys| H
+    V[MOD-6 Key Vault] -.->|API Keys| H
 
     G --> H
 

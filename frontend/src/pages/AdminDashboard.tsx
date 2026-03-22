@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminSettings from "./AdminSettings";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import CodeLoader from "@/components/ui/CodeLoader";
 import { api, AttackFrequencyData, TopThreatsData, RiskDistributionData } from "@/lib/api";
 import { useUser, useClerk } from "@clerk/clerk-react";
-import { Shield, BarChart3, Users, AlertTriangle, Activity, Settings, FileText, Monitor, LayoutDashboard, TrendingUp, Lock, Eye, Zap, Bell, Loader2, Check, Share2 } from "lucide-react";
+import { Shield, BarChart3, Users, AlertTriangle, Activity, Settings, FileText, Monitor, LayoutDashboard, TrendingUp, Lock, Eye, Zap, Bell, Loader2, Check, Share2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
@@ -165,7 +165,7 @@ const DashboardTab = ({ frequencyData, riskDistribution, topThreats, latencyMetr
                 <span className="text-white/40 truncate max-w-[80px]">{log.user_id}</span>
                 <span className="text-white/10">→</span>
                 <span className={log.action_taken === "Passed" || log.action_taken === "Safe" ? "text-green-400/80" : log.action_taken === "Sanitized" ? "text-yellow-400/80" : "text-red-400/90"}>
-                  {log.action_taken.toUpperCase()}
+                  {(log.action_taken || "").toUpperCase()}
                 </span>
               </div>
             )) : (
@@ -374,7 +374,7 @@ const LiveMonitorTab = ({ logs }: { logs: any[] }) => (
               <span className="text-white/[0.06]">│</span>
               <span className={`flex-1 truncate ${actionColor}`}>{log.prompt}</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${actionColor} bg-white/[0.03]`}>
-                {log.action_taken.toUpperCase()}
+                {(log.action_taken || "").toUpperCase()}
               </span>
             </motion.div>
           );
@@ -402,6 +402,9 @@ const TeamTab = () => {
     refetchInterval: 30000,
   });
 
+  const [inviteSecret, setInviteSecret] = useState<{ userId: string; secret: string } | null>(null);
+  const [isGeneratingInvite, setIsGeneratingInvite] = useState(false);
+
   if (isLoading) {
     return (
       <div className="h-[400px] flex items-center justify-center">
@@ -411,6 +414,26 @@ const TeamTab = () => {
   }
 
   const users = usersData?.users || [];
+
+  const handleGenerateInvite = async (userId: string) => {
+    setIsGeneratingInvite(true);
+    try {
+      const data = await api.createUserInvite(userId, user?.id || "");
+      setInviteSecret({ userId, secret: data.secret });
+      toast({
+        title: "Secret Generated",
+        description: "One-time authorization secret created successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Generation Failed",
+        description: error.message || "Could not create invite secret.",
+      });
+    } finally {
+      setIsGeneratingInvite(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -431,7 +454,7 @@ const TeamTab = () => {
                 <th className="py-3 px-4 font-medium">Trust Score</th>
                 <th className="py-3 px-4 font-medium">Total Scans</th>
                 <th className="py-3 px-4 font-medium">Safe/Blocked</th>
-                <th className="py-3 px-4 text-right font-medium">Action</th>
+                <th className="py-3 px-4 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.02]">
@@ -449,7 +472,7 @@ const TeamTab = () => {
                         {(u.full_name || u.email || "U").charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-white/80">{u.full_name || u.email.split("@")[0]}</p>
+                        <p className="text-sm font-medium text-white/80">{u.full_name || (u.email ? u.email.split("@")[0] : "User")}</p>
                         <p className="text-[10px] text-white/20 font-mono">{u.email}</p>
                         <p className="text-[10px] text-white/10 font-mono">{u.user_id}</p>
                       </div>
@@ -479,14 +502,27 @@ const TeamTab = () => {
                     </div>
                   </td>
                   <td className="py-4 px-4 text-right">
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      onClick={() => setSelectedUser(u)}
-                      className="text-[10px] h-7 text-white/30 hover:text-white hover:bg-white/5"
-                    >
-                      VIEW STATS
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                        {u.role !== "admin" && (
+                            <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => handleGenerateInvite(u.user_id)}
+                                disabled={isGeneratingInvite}
+                                className="text-[10px] h-7 border-blue-500/20 text-blue-400/70 hover:bg-blue-500/10 hover:text-blue-400"
+                            >
+                                {isGeneratingInvite ? <Loader2 className="h-3 w-3 animate-spin"/> : "INVITE"}
+                            </Button>
+                        )}
+                        <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={() => setSelectedUser(u)}
+                            className="text-[10px] h-7 text-white/30 hover:text-white hover:bg-white/5"
+                        >
+                            STATS
+                        </Button>
+                    </div>
                   </td>
                 </motion.tr>
               ))}
@@ -494,6 +530,61 @@ const TeamTab = () => {
           </table>
         </div>
       </GlassCard>
+
+      {/* Secret Display Modal */}
+      <AnimatePresence>
+        {inviteSecret && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl"
+          >
+             <div className="w-full max-w-md bg-[#0c0c0e] border border-blue-500/30 rounded-3xl p-8 shadow-[0_0_50px_rgba(59,130,246,0.1)]">
+                <div className="text-center mb-6">
+                    <div className="h-12 w-12 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/20">
+                        <Lock className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white">Authorization Secret</h3>
+                    <p className="text-xs text-white/30 mt-2">Generated for: <span className="text-blue-400 font-mono">{inviteSecret.userId}</span></p>
+                </div>
+
+                <div className="relative group mb-6">
+                    <div className="absolute inset-0 bg-blue-500/5 blur-xl group-hover:bg-blue-500/10 transition-all opacity-50" />
+                    <div className="relative p-6 rounded-2xl bg-black/40 border border-white/5 text-center">
+                        <p className="text-2xl font-mono font-bold text-white tracking-[0.2em]">{inviteSecret.secret}</p>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10 flex gap-3 items-start">
+                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-amber-200/50 leading-relaxed uppercase tracking-widest font-bold">
+                            Warning: This secret will only be shown once. It is cryptographically random and valid for 7 days.
+                        </p>
+                    </div>
+
+                    <Button 
+                        className="w-full bg-blue-600 hover:bg-blue-700 h-12 text-white font-bold"
+                        onClick={() => {
+                            navigator.clipboard.writeText(inviteSecret.secret);
+                            toast({ title: "Copied!", description: "Secret copied to clipboard." });
+                        }}
+                    >
+                        COPY TO CLIPBOARD
+                    </Button>
+                    <Button 
+                        variant="ghost" 
+                        className="w-full text-white/20 hover:text-white"
+                        onClick={() => setInviteSecret(null)}
+                    >
+                        CLOSE
+                    </Button>
+                </div>
+             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {selectedUser && (
@@ -514,7 +605,7 @@ const TeamTab = () => {
                       <Users className="h-6 w-6 text-blue-400" />
                    </div>
                    <div>
-                      <h3 className="text-lg font-bold text-white/90">{selectedUser.email.split("@")[0]}'s Security Profile</h3>
+                      <h3 className="text-lg font-bold text-white/90">{selectedUser.full_name || (selectedUser.email ? selectedUser.email.split("@")[0] : "User")}'s Security Profile</h3>
                       <p className="text-xs text-white/20 font-mono">{selectedUser.user_id}</p>
                    </div>
                 </div>
@@ -788,7 +879,7 @@ const SecurityLogsTab = ({ logs }: { logs: any[] }) => (
               log.action_taken === "Blocked" ? "text-red-400 bg-red-400/10" :
               log.action_taken === "Sanitized" ? "text-orange-400 bg-orange-400/10" :
               "text-green-400 bg-green-400/10"
-            }`}>{log.action_taken.toUpperCase()}</span>
+            }`}>{ (log.action_taken || "").toUpperCase() }</span>
             <span className="text-white/10 shrink-0 w-12 text-right">{log.risk_score}</span>
           </motion.div>
         )) : (
@@ -798,6 +889,164 @@ const SecurityLogsTab = ({ logs }: { logs: any[] }) => (
     </GlassCard>
   </div>
 );
+// ─── Gateway Registry Tab ─────────────────────────────────
+const GatewayRegistryTab = ({ adminId }: { adminId: string }) => {
+  const queryClient = useQueryClient();
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [registrationResult, setRegistrationResult] = useState<any>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["gatewayClients", adminId],
+    queryFn: () => api.getGatewayClients(adminId),
+    enabled: !!adminId,
+    refetchInterval: 30000,
+  });
+
+  const registerMutation = useMutation({
+    mutationFn: (name: string) => api.registerGatewayClient(adminId, { client_name: name }),
+    onSuccess: (data) => {
+      setRegistrationResult(data);
+      setNewClientName("");
+      queryClient.invalidateQueries({ queryKey: ["gatewayClients"] });
+      toast({ title: "Client Registered", description: "Successfully created new gateway client." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Registration Failed", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (clientId: string) => api.revokeGatewayClient(adminId, clientId, "Deactivated by admin"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gatewayClients"] });
+      toast({ title: "Client Revoked", description: "Gateway client access has been removed." });
+    }
+  });
+
+  if (isLoading) return <div className="h-40 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-white/20" /></div>;
+
+  const clients = data?.clients || [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white/90">Trusted Execution Gateways</h2>
+        <Button 
+          onClick={() => setIsRegistering(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 rounded-xl"
+        >
+          <Plus className="h-4 w-4 mr-2" /> REGISTER NEW CLIENT
+        </Button>
+      </div>
+
+      <div className="grid gap-4">
+        {clients.length === 0 ? (
+          <div className="h-64 rounded-3xl border border-dashed border-white/5 flex flex-col items-center justify-center text-white/10 gap-2">
+            <Lock className="h-8 w-8 opacity-20" />
+            <p className="text-sm italic">No active gateway clients found</p>
+          </div>
+        ) : (
+          clients.map((client: any) => (
+            <GlassCard key={client.client_id} className="p-6 flex items-center justify-between group">
+              <div className="flex items-center gap-6">
+                 <div className="h-12 w-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+                    <Shield className={`h-6 w-6 ${client.is_active ? "text-blue-400" : "text-white/20"}`} />
+                 </div>
+                 <div>
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-lg font-bold text-white/90 tracking-tight">{client.client_name}</h3>
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${client.is_active ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-500"}`}>
+                        {client.is_active ? "ACTIVE" : "REVOKED"}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 mt-1">
+                      <p className="text-[10px] text-white/20 font-mono tracking-tighter uppercase">ID: {client.client_id}</p>
+                      <span className="text-white/[0.05]">|</span>
+                      <p className="text-[10px] text-white/20 font-mono tracking-tighter uppercase">Usage: {client.request_count} Requests</p>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-red-500/40 hover:text-red-500 hover:bg-red-500/10 rounded-xl"
+                  onClick={() => {
+                    if (confirm("Are you sure? This will immediately break all integrations for this client.")) {
+                      revokeMutation.mutate(client.client_id);
+                    }
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> REVOKE ACCESS
+                </Button>
+              </div>
+            </GlassCard>
+          ))
+        )}
+      </div>
+
+      <AnimatePresence>
+        {isRegistering && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl p-4">
+            <GlassCard className="w-full max-w-md p-8 relative">
+              {registrationResult ? (
+                <div className="space-y-6 text-center">
+                  <div className="h-16 w-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto border border-green-500/20">
+                    <Check className="h-8 w-8 text-green-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white mb-2">Registration Complete</h3>
+                    <p className="text-sm text-white/30">Safeguard this secret. It will never be shown again.</p>
+                  </div>
+                  <div className="p-6 rounded-2xl bg-black/40 border border-white/5 font-mono text-center">
+                    <p className="text-xs text-white/20 mb-2 uppercase tracking-widest">Client Secret</p>
+                    <p className="text-lg font-bold text-blue-400 tracking-wider break-all">{registrationResult.secret}</p>
+                  </div>
+                  <Button 
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 rounded-xl"
+                    onClick={() => {
+                      setRegistrationResult(null);
+                      setIsRegistering(false);
+                    }}
+                  >
+                    I HAVE SAVED IT
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <h3 className="text-xl font-bold text-white mb-6">Register Gateway Client</h3>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-white/30 uppercase font-bold tracking-widest ml-1">Client Display Name</label>
+                      <input 
+                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-white/10 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                        placeholder="e.g. Production Mobile App"
+                        value={newClientName}
+                        onChange={e => setNewClientName(e.target.value)}
+                      />
+                    </div>
+                    <div className="pt-4 flex gap-3">
+                      <Button variant="ghost" className="flex-1 text-white/30 hover:text-white" onClick={() => setIsRegistering(false)}>CANCEL</Button>
+                      <Button 
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                        disabled={!newClientName || registerMutation.isPending}
+                        onClick={() => registerMutation.mutate(newClientName)}
+                      >
+                         {registerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "PROCEED"}
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </GlassCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 // ─── Settings Tab ──────────────────────────────────────────
 
@@ -806,32 +1055,30 @@ const AdminDashboard = () => {
   const { user } = useUser();
   const { signOut } = useClerk();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("dashboard");
   const [loading, setLoading] = useState(true);
-  const [analyticsData, setAnalyticsData] = useState<{
-    frequency: AttackFrequencyData | null;
-    threats: TopThreatsData | null;
-    risk: RiskDistributionData | null;
-  }>({ frequency: null, threats: null, risk: null });
 
-  const fetchAnalytics = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const [freq, threats, risk] = await Promise.all([
-        api.getAttackFrequency(user.id),
-        api.getTopThreats(user.id),
-        api.getRiskDistribution(user.id)
-      ]);
-      setAnalyticsData({ frequency: freq, threats, risk });
-    } catch (error: any) {
-      console.error("Failed to fetch analytics:", error);
-      toast({
-        title: "Analytics Error",
-        description: "Could not fetch latest security data from IronGuard Engine.",
-        variant: "destructive",
-      });
-    }
-  }, [user?.id]);
+  const { data: frequencyData } = useQuery({
+    queryKey: ["attackFrequency", user?.id],
+    queryFn: () => api.getAttackFrequency(user?.id || ""),
+    enabled: !!user?.id,
+    refetchInterval: 30000,
+  });
+
+  const { data: topThreatsData } = useQuery({
+    queryKey: ["topThreats", user?.id],
+    queryFn: () => api.getTopThreats(user?.id || ""),
+    enabled: !!user?.id,
+    refetchInterval: 30000,
+  });
+
+  const { data: riskData } = useQuery({
+    queryKey: ["riskDistribution", user?.id],
+    queryFn: () => api.getRiskDistribution(user?.id || ""),
+    enabled: !!user?.id,
+    refetchInterval: 30000,
+  });
 
   const { data: logsData } = useQuery({
     queryKey: ["securityLogs", user?.id],
@@ -868,12 +1115,6 @@ const AdminDashboard = () => {
     refetchInterval: 10000,
   });
 
-  useEffect(() => {
-    fetchAnalytics();
-    const interval = setInterval(fetchAnalytics, 30000); // Refresh every 30s
-    return () => clearInterval(interval);
-  }, [fetchAnalytics]);
-
   // Block browser back navigation
   useEffect(() => {
     window.history.pushState(null, "", window.location.href);
@@ -889,63 +1130,73 @@ const AdminDashboard = () => {
   if (loading) return <CodeLoader onComplete={handleLoadComplete} />;
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white relative" style={{ fontFamily: "'Space Grotesk','Inter',system-ui,sans-serif" }}>
+    <div className="min-h-screen bg-[#050505] text-white selection:bg-blue-500/30 font-sans overflow-x-hidden flex flex-col">
+      <AuroraBackground />
+      <FloatingBlobs />
       <LiquidEther />
-      <div className="fixed inset-0 pointer-events-none">
-        <AuroraBackground />
-        <FloatingBlobs />
-      </div>
 
-      <nav className="sticky top-0 z-50 border-b border-white/[0.04] bg-black/50 backdrop-blur-2xl">
-        <div className="container mx-auto flex items-center justify-between h-16 px-4 md:px-8">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-white/[0.06] border border-white/[0.06] flex items-center justify-center">
-              <Shield className="h-4 w-4 text-white/70" />
-            </div>
-            <span className="text-base font-semibold tracking-tight text-white/90">IronGuard AI — Admin</span>
-          </div>
+      {/* Navigation */}
+      <nav className="sticky top-0 z-[60] border-b border-white/[0.05] bg-black/40 backdrop-blur-2xl">
+        <div className="container mx-auto px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button size="sm" variant="ghost" className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 text-xs h-8" onClick={() => window.location.href = "/user/analyser"}>
-              <Eye className="h-3 w-3 mr-1.5" /> User View
-            </Button>
-            <span className="text-sm text-white/35">{user?.primaryEmailAddress?.emailAddress}</span>
+            <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.3)]">
+              <Shield className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/40 tracking-tight">IronGuard Admin</h2>
+              <div className="flex items-center gap-2 mt-0.5">
+                <div className="h-1 w-1 rounded-full bg-blue-500 animate-pulse" />
+                <span className="text-[10px] text-white/20 uppercase font-mono tracking-widest leading-none">V2.4.0 NODE_B_STABLE</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6">
             <Button size="sm" variant="ghost" className="text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => signOut()}>
               Sign Out
             </Button>
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.03] border border-white/[0.05]">
+              <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-medium tracking-tight text-white/50 uppercase">Live Feed</span>
+              <div className="w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="text-[10px] text-white/20 hover:text-white" 
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ["attackFrequency", user?.id] });
+                  queryClient.invalidateQueries({ queryKey: ["topThreats", user?.id] });
+                  queryClient.invalidateQueries({ queryKey: ["riskDistribution", user?.id] });
+                }}
+              >
+                REFRESH LIVE DATA
+              </Button>
+            </div>
           </div>
         </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-10 relative z-10">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <div className="flex items-end justify-between mb-8">
+      <div className="container mx-auto px-8 py-10 flex-1 relative z-10">
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
+          <div className="flex items-end justify-between">
             <div>
-              <h1 className="text-4xl font-bold mb-2 bg-gradient-to-b from-white to-white/50 bg-clip-text text-transparent">
+              <h1 className="text-4xl font-bold tracking-tight text-white/90 mb-1">
                 Admin Dashboard
               </h1>
               <p className="text-white/30">Welcome back, {user?.firstName || "Admin"}.</p>
             </div>
-            <Button size="sm" variant="ghost" className="text-[10px] text-white/20 hover:text-white" onClick={fetchAnalytics}>
-              <Activity className="h-3 w-3 mr-2" /> REFRESH LIVE DATA
-            </Button>
           </div>
         </motion.div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-1 mb-8 p-1 rounded-xl bg-black/30 backdrop-blur-lg border border-white/[0.04] w-fit">
+        {/* Tab Switcher - Original Style Restored */}
+        <div className="flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-white/[0.02] border border-white/[0.05] mb-8 w-fit">
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => {
-                if (tab.id === "gateway") {
-                  navigate("/admin/gateway");
-                } else {
-                  setActiveTab(tab.id);
-                }
-              }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 activeTab === tab.id
-                  ? "bg-white/[0.06] text-white/90 border border-white/[0.08]"
+                  ? "bg-white/[0.07] text-white border border-white/10 shadow-xl shadow-black/20"
                   : "text-white/30 hover:text-white/50 hover:bg-white/[0.02] border border-transparent"
               }`}
             >
@@ -967,23 +1218,24 @@ const AdminDashboard = () => {
             >
               {activeTab === "dashboard" && (
                 <DashboardTab 
-                   frequencyData={analyticsData.frequency} 
-                   riskDistribution={analyticsData.risk}
-                   topThreats={analyticsData.threats}
-                   latencyMetrics={latencyMetrics}
-                   sanitizationRatio={sanRatio}
-                   blockingEfficiency={blockEfficiency}
-                   logs={logsData?.logs || []}
+                  frequencyData={frequencyData ?? null} 
+                  riskDistribution={riskData ?? null}
+                  topThreats={topThreatsData ?? null}
+                  latencyMetrics={latencyMetrics}
+                  sanitizationRatio={sanRatio}
+                  blockingEfficiency={blockEfficiency}
+                  logs={logsData?.logs || []}
                 />
               )}
               {activeTab === "analytics" && (
                 <ThreatAnalyticsTab 
-                  frequencyData={analyticsData.frequency}
+                  frequencyData={frequencyData ?? null}
                   latencyMetrics={latencyMetrics}
                   policyViolations={policyViolations}
                 />
               )}
               {activeTab === "team" && <TeamTab />}
+              {activeTab === "gateway" && <GatewayRegistryTab adminId={user?.id || ""} />}
               {activeTab === "interactive-flow" && (
                 <div className="py-8">
                   <GatewayVisualizer />
@@ -999,21 +1251,21 @@ const AdminDashboard = () => {
       </div>
 
       {/* Footer info */}
-        <div className="container mx-auto px-8 pb-12 mt-auto">
-          <div className="flex items-center justify-between py-6 border-t border-white/[0.05]">
-            <p className="text-[10px] text-white/15 uppercase font-mono tracking-widest">IronGuard AI Security Pipeline v3.2.0-STABLE</p>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-green-500/50" />
-                <span className="text-[10px] text-white/30 uppercase font-mono">Engine: ONLINE</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-blue-500/50" />
-                <span className="text-[10px] text-white/30 uppercase font-mono">Latency: {Math.round(latencyMetrics?.avg_latency || 0)}ms</span>
-              </div>
+      <div className="container mx-auto px-8 pb-12 mt-auto">
+        <div className="flex items-center justify-between py-6 border-t border-white/[0.05]">
+          <p className="text-[10px] text-white/15 uppercase font-mono tracking-widest">IronGuard AI Security Pipeline v3.2.0-STABLE</p>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-green-500/50" />
+              <span className="text-[10px] text-white/30 uppercase font-mono">Engine: ONLINE</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-blue-500/50" />
+              <span className="text-[10px] text-white/30 uppercase font-mono">Latency: {Math.round(latencyMetrics?.avg_latency || 0)}ms</span>
             </div>
           </div>
         </div>
+      </div>
     </div>
   );
 };

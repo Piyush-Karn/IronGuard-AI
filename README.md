@@ -33,3 +33,4 @@ IronGuard is a state-of-the-art security middleware platform designed to protect
 - [API Reference](./documentation/api_reference.md)
 - [Database Guide](./documentation/database_guide.md)
 - [Setup & Deployment](./documentation/setup_and_deployment.md)
+- [Testing Guide](./documentation/testing_guide.md)

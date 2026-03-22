@@ -38,6 +38,9 @@ Docker is the preferred way to run IronGuard as it ensures all security models a
 - `MISTRAL_API_KEY`: Fallback provider key.
 - `MONGO_URL`: `mongodb://mongodb:27017/ironguard` (internal container URL).
 - `CHROMA_HOST`: `chromadb` (internal container name).
+- `SYSTEM_DASHBOARD_SECRET`: Shared secret between Dashboard and Gateway (e.g., `35_1fb20d6f4a8b7c2e_dashboard_secret`).
+- `IG_SECRET_ENCRYPTION_KEY`: A 32-byte Fernet key for encrypting provider keys (base64).
+- `ADMIN_USER_IDS`: JSON list of Clerk User IDs with admin access (e.g., `["user_123"]`).
 
 ---
 

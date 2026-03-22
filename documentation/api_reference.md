@@ -57,22 +57,37 @@ The full "production" endpoint. It scans the prompt, sanitizes it if suspicious,
 
 ### `GET /api/v1/auth/me`
 Retrieves the authenticated user's role and synchronizes profile data.
-
 - **Headers**:
   - `X-User-Id`: The user's unique identifier.
 - **Response**:
   ```json
   {
     "user_id": "user_123",
-    "role": "admin"
+    "role": "admin",
+    "is_verified": true
   }
   ```
+
+### `POST /api/v1/auth/verify-secret`
+Verifies an employee's one-time authorization secret.
+- **Headers**:
+  - `X-User-Id`: The user's unique identifier.
+- **Body**:
+  ```json
+  { "secret": "string" }
+  ```
+- **Success Response (200)**: `{"status": "success", "message": "Account verified successfully."}`
 
 ---
 
 ## Analytics & User Management API
 
 All analytics endpoints require **Admin** privileges and MUST include the `X-User-Id` header.
+
+### `POST /api/v1/unblock`
+Restores a user's trust score and malicious attempt counter. Requires admin privileges.
+- **Body**: `{"user_id": "string"}`
+- **Response**: `{"status": "success", "message": "Trust score restored", "current_state": {...}}`
 
 ### `GET /api/v1/analytics/users`
 Retrieves a list of all users with aggregated security statistics (checks, sanitized, blocked) and trust scores.

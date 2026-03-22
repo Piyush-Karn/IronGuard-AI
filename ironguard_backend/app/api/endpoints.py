@@ -1,9 +1,13 @@
 import asyncio
-from fastapi import APIRouter, HTTPException, Request, Depends
+import os
+import time
+import logging
+from datetime import datetime
+from fastapi import APIRouter, HTTPException, Request, Depends, status
 from pydantic import BaseModel
 from typing import Optional, List
 
-from app.api.auth import get_current_user_id
+from app.api.auth import get_current_user_id, admin_only
 from app.monitoring.user_manager import user_manager
 from app.models.schemas import PromptRequest, RiskExplanation, ThreatLog, ClassifierOutput, Role
 
@@ -13,7 +17,11 @@ from app.response_security.response_monitor import response_monitor  # MOD-2
 from app.monitoring.user_behavior import user_behavior_monitor
 from app.monitoring.security_logger import security_logger
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+# --- User Profile & Stats (Restored) ---
 
 @router.get("/auth/me")
 async def get_me(
@@ -26,7 +34,8 @@ async def get_me(
     Syncs email and group name if provided.
     """
     role = await user_manager.get_user_role(user_id, email=email, full_name=full_name)
-    return {"user_id": user_id, "role": role}
+    is_verified = await user_manager.is_user_verified(user_id)
+    return {"user_id": user_id, "role": role, "is_verified": is_verified}
 
 
 @router.get("/users/me/stats")
@@ -39,6 +48,83 @@ async def get_my_stats(user_id: str = Depends(get_current_user_id)):
         raise HTTPException(status_code=404, detail="Stats not found")
     return stats
 
+# --- Rate Limiting State (Verify Secret) ---
+# In production, use Redis. For this demo, we use a simple in-memory dict.
+verification_attempts = {} # {user_id/ip: (count, lockout_until)}
+
+def check_verification_rate_limit(key: str):
+    now = time.time()
+    fail_limit = int(os.getenv("VERIFICATION_FAIL_LIMIT", "5"))
+    cooldown = int(os.getenv("VERIFICATION_COOLDOWN_MINUTES", "15")) * 60
+
+    if key in verification_attempts:
+        count, lockout = verification_attempts[key]
+        if now < lockout:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many failed attempts. Try again in {int((lockout - now)/60)} minutes."
+            )
+        if count >= fail_limit:
+            # Reset after lockout expires
+            verification_attempts[key] = (0, 0)
+    return True
+
+def record_verification_failure(key: str):
+    now = time.time()
+    fail_limit = int(os.getenv("VERIFICATION_FAIL_LIMIT", "5"))
+    cooldown = int(os.getenv("VERIFICATION_COOLDOWN_MINUTES", "15")) * 60
+
+    count, lockout = verification_attempts.get(key, (0, 0))
+    count += 1
+    if count >= fail_limit:
+        lockout = now + cooldown
+        logger.error(f"SECURITY_ALERT: Brute-force detected for {key}. Locked for {cooldown/60} mins.")
+    
+    verification_attempts[key] = (count, lockout)
+
+# --- Verification Endpoints ---
+
+class VerifySecretRequest(BaseModel):
+    secret: str
+
+@router.post("/auth/verify-secret")
+async def verify_secret(v_req: VerifySecretRequest, req: Request, user_id: str = Depends(get_current_user_id)):
+    """Verifies an employee's one-time authorization secret."""
+    # Rate limit by both User ID and IP
+    client_ip = req.client.host if req.client else "unknown"
+    check_verification_rate_limit(user_id)
+    check_verification_rate_limit(client_ip)
+
+    success = await user_manager.verify_invite(user_id, v_req.secret)
+    
+    if success:
+        verification_attempts.pop(user_id, None)
+        verification_attempts.pop(client_ip, None)
+        logger.info(f"User {user_id} successfully verified via secret from IP {client_ip}")
+        return {"status": "success", "message": "Account verified successfully."}
+    else:
+        record_verification_failure(user_id)
+        record_verification_failure(client_ip)
+        logger.warning(f"Verification FAILED for user {user_id} from IP {client_ip}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authorization secret."
+        )
+
+# --- Shadow Mode & Deprecated Endpoints ---
+
+def log_shadow_usage(endpoint: str):
+    """Logs usage of deprecated /api/v1 endpoints for migration tracking."""
+    logger.warning(f"DEPRECATION_WARNING: Endpoint {endpoint} used. Please migrate to /gateway/v1/.")
+
+async def enforce_verification(user_id: str):
+    """Ensures non-admin users are verified before using AI."""
+    is_verified = await user_manager.is_user_verified(user_id)
+    if not is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account not verified. Please provide your authorization secret."
+        )
 
 class ScanResponse(BaseModel):
     risk_explanation: RiskExplanation
@@ -62,11 +148,14 @@ class ProcessedResponse(BaseModel):
 
 
 @router.post("/scan_prompt", response_model=ScanResponse)
-async def scan_prompt(request: PromptRequest, req: Request):
+async def scan_prompt(request: PromptRequest, req: Request, user_id: str = Depends(get_current_user_id)):
+    log_shadow_usage("/scan_prompt")
+    await enforce_verification(user_id)
+    
     ip_address = req.client.host if req.client else "unknown"
 
     # 1. Session termination check
-    if await user_behavior_monitor.should_terminate_session(request.user_id):
+    if await user_behavior_monitor.should_terminate_session(user_id):
         raise HTTPException(
             status_code=403,
             detail="Session terminated due to multiple malicious attempts."
@@ -77,20 +166,20 @@ async def scan_prompt(request: PromptRequest, req: Request):
     norm_prompt, risk_explanation, action, classifier_result, fp_result, sanitization_result = \
         await decision_engine.evaluate_request(
             request.prompt,
-            user_id=request.user_id,
+            user_id=user_id,
             session_id=request.conversation_id
         )
 
-    # 3.1 Session context update (Feature 1)
+    # 3.1 Session context update
     if request.conversation_id:
         from app.context.context_builder import context_builder
         asyncio.create_task(context_builder.add_to_context(
-            request.conversation_id, request.user_id, request.prompt, risk_explanation.risk_score
+            request.conversation_id, user_id, request.prompt, risk_explanation.risk_score
         ))
 
     # 4. Trust score update
     await user_behavior_monitor.update_trust_score(
-        request.user_id, risk_explanation.classification
+        user_id, risk_explanation.classification
     )
 
     # 5. Build classifier snapshot for logging
@@ -101,9 +190,9 @@ async def scan_prompt(request: PromptRequest, req: Request):
         latency_ms=classifier_result.latency_ms,
     )
 
-    # 6. Log event (now includes classifier + fingerprint data)
+    # 6. Log event
     threat_log = ThreatLog(
-        user_id=request.user_id,
+        user_id=user_id,
         user_email=request.user_email,
         prompt=request.prompt,
         risk_score=risk_explanation.risk_score,
@@ -128,35 +217,38 @@ async def scan_prompt(request: PromptRequest, req: Request):
 
 
 @router.post("/process_prompt", response_model=ProcessedResponse)
-async def process_prompt(request: PromptRequest, req: Request):
+async def process_prompt(request: PromptRequest, req: Request, user_id: str = Depends(get_current_user_id)):
+    log_shadow_usage("/process_prompt")
+    await enforce_verification(user_id)
+
     ip_address = req.client.host if req.client else "unknown"
 
     # 1. Session termination check
-    if await user_behavior_monitor.should_terminate_session(request.user_id):
+    if await user_behavior_monitor.should_terminate_session(user_id):
         raise HTTPException(
             status_code=403,
             detail="Session terminated due to multiple malicious attempts."
         )
 
 
-    # 3. Full evaluation (v2 decision engine)
+    # 3. Full evaluation
     norm_prompt, risk_explanation, action, classifier_result, fp_result, sanitization_result = \
         await decision_engine.evaluate_request(
             request.prompt,
-            user_id=request.user_id,
+            user_id=user_id,
             session_id=request.conversation_id
         )
 
-    # 3.1 Session context update (Feature 1)
+    # 3.1 Session context update
     if request.conversation_id:
         from app.context.context_builder import context_builder
         asyncio.create_task(context_builder.add_to_context(
-            request.conversation_id, request.user_id, request.prompt, risk_explanation.risk_score
+            request.conversation_id, user_id, request.prompt, risk_explanation.risk_score
         ))
 
     # 4. Trust score update
     await user_behavior_monitor.update_trust_score(
-        request.user_id, risk_explanation.classification
+        user_id, risk_explanation.classification
     )
 
     # 5. Build classifier output for logging
@@ -167,7 +259,7 @@ async def process_prompt(request: PromptRequest, req: Request):
         latency_ms=classifier_result.latency_ms,
     )
 
-    # 6. If blocked — return immediately, no LLM call
+    # 6. If blocked — return immediately
     if action == "Blocked":
         threat_log = ThreatLog(
             user_id=request.user_id,
@@ -193,8 +285,6 @@ async def process_prompt(request: PromptRequest, req: Request):
         )
 
     # 7. Determine final prompt to forward
-    #    - If sanitized: use the sanitizer's output
-    #    - If passed: use the NFKC-normalized prompt
     if action == "Sanitized" and sanitization_result and sanitization_result.sanitized_prompt:
         final_prompt = sanitization_result.sanitized_prompt
     else:
@@ -202,7 +292,7 @@ async def process_prompt(request: PromptRequest, req: Request):
 
     # 8. Forward to real LLM proxy
     proxy_result = await llm_proxy.route_request(
-        provider="auto",  # BUG-2 fix
+        provider="auto",
         prompt=final_prompt,
         user_id=request.user_id,
     )
@@ -215,7 +305,7 @@ async def process_prompt(request: PromptRequest, req: Request):
 
     llm_response_text = proxy_result.text
 
-    # 9. MOD-2: Scan LLM response for safety violations
+    # 9. MOD-2: Scan LLM response
     scan_result = await response_monitor.scan(llm_response_text)
 
     # 10. Log full exchange
@@ -236,7 +326,7 @@ async def process_prompt(request: PromptRequest, req: Request):
         user_id=request.user_id,
         user_email=request.user_email,
         prompt=request.prompt,
-        risk_score=risk_explanation.risk_score,
+        risk_score=risk_score if (risk_score := risk_explanation.risk_score) else 0,
         classification=risk_explanation.classification,
         action_taken=log_action,
         ip_address=ip_address,
@@ -271,6 +361,8 @@ class SimulateRequest(BaseModel):
 
 @router.post("/simulate_attack")
 async def simulate_attack(sim_req: SimulateRequest, req: Request):
+    log_shadow_usage("/simulate_attack")
+    await enforce_verification(sim_req.user_id)
     prompt_req = PromptRequest(user_id=sim_req.user_id, prompt=sim_req.prompt)
     return await scan_prompt(prompt_req, req)
 
@@ -279,7 +371,7 @@ class UnblockRequest(BaseModel):
     user_id: str
 
 
-@router.post("/unblock")
+@router.post("/unblock", dependencies=[Depends(admin_only)])
 async def unblock_user(request: UnblockRequest):
     await user_behavior_monitor.reset_trust_score(request.user_id)
     new_status = await user_behavior_monitor.get_or_create_trust_score(request.user_id)

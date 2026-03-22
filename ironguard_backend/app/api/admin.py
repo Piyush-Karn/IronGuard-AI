@@ -165,6 +165,23 @@ async def get_users():
         })
 
     return {"users": result}
+
+@router.post("/users/{user_id}/invite", dependencies=[admin_only])
+async def create_user_invite(user_id: str):
+    """
+    Generates a one-time authorization secret for an employee.
+    The plain secret is returned ONLY ONCE.
+    """
+    secret = await user_manager.create_invite(user_id)
+    if not secret:
+        raise HTTPException(status_code=500, detail="Failed to generate invite secret")
+    
+    return {
+        "user_id": user_id,
+        "secret": secret,
+        "expires_at": (datetime.utcnow() + timedelta(days=7)).isoformat(),
+        "instructions": "Share this secret with the employee. It can only be used once."
+    }
 @router.get("/metrics/latency-breakdown", dependencies=[admin_only])
 async def get_latency_metrics():
     db = get_database()

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, GatewayClient } from "@/lib/api";
 import { useUser, useClerk } from "@clerk/clerk-react";
@@ -244,7 +244,7 @@ const AdminGateway = () => {
                             <Activity className="h-2.5 w-2.5 text-white/30" /> REQUESTS
                           </p>
                           <p className="text-xs text-white/40 font-mono">
-                            {client.request_count.toLocaleString()}
+                            {(client.request_count || 0).toLocaleString()}
                           </p>
                         </div>
                         <div className="hidden md:block">
