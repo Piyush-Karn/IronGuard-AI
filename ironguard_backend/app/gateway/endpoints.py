@@ -29,6 +29,7 @@ class GatewayPromptRequest(BaseModel):
     session_id: Optional[str] = None
     user_id: Optional[str] = "gateway-user"  # client app's own user identifier
     external_content: Optional[str] = None
+    provider: Optional[str] = "auto"
 
 
 class GatewayPromptResponse(BaseModel):
@@ -113,7 +114,7 @@ async def gateway_prompt(request: GatewayPromptRequest, req: Request):
 
     # Forward to LLM proxy (keys isolated here)
     proxy_result = await llm_proxy.route_request(
-        provider="auto",
+        provider=request.provider,
         prompt=final_prompt,
         user_id=f"gateway:{client_id}",
         external_content=request.external_content,
@@ -250,7 +251,7 @@ async def gateway_process_prompt(request: PromptRequest, req: Request):
         final_prompt = san_result.sanitized_prompt
 
     proxy_result = await llm_proxy.route_request(
-        provider="auto",
+        provider=request.provider,
         prompt=final_prompt,
         user_id=f"gateway:{client_id}",
     )

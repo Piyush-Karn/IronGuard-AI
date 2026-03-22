@@ -28,6 +28,7 @@ class PromptRequest(BaseModel):
     prompt: str
     user_email: Optional[str] = None
     conversation_id: Optional[str] = None
+    provider: Optional[str] = "auto"  # gemini, mistral, openai, anthropic
 
 
 class RiskExplanation(BaseModel):

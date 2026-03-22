@@ -79,6 +79,12 @@ GEMINI_BASE_URL = (
 MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
 MISTRAL_MODEL = "mistral-small-latest"   # free tier
 
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_MODEL = "gpt-4o-mini"
+
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_MODEL = "claude-3-haiku-20240307"
+
 MAX_PROMPT_CHARS = 8000
 MAX_RETRIES = 3
 RETRY_DELAYS = [0.5, 1.5, 4.0]
@@ -173,7 +179,20 @@ class LLMProxy:
             return self._gemini_key_env
         elif provider == "mistral":
             return self._mistral_key_env
+        elif provider == "openai":
+            return os.getenv("OPENAI_API_KEY", "")
+        elif provider == "anthropic":
+            return os.getenv("ANTHROPIC_API_KEY", "")
         return ""
+
+    async def get_available_providers(self) -> list[str]:
+        """Returns a list of providers for which API keys are configured."""
+        providers = []
+        if await self._get_provider_key("gemini"): providers.append("gemini")
+        if await self._get_provider_key("mistral"): providers.append("mistral")
+        if await self._get_provider_key("openai"): providers.append("openai")
+        if await self._get_provider_key("anthropic"): providers.append("anthropic")
+        return providers
 
     async def route_request(
         self,
@@ -192,16 +211,41 @@ class LLMProxy:
             logger.warning(f"[{request_id}] Prompt truncated ({len(prompt)} → {MAX_PROMPT_CHARS} chars)")
             prompt = prompt[:MAX_PROMPT_CHARS]
 
-        # Resolve provider order (Check keys dynamically)
         gemini_key = await self._get_provider_key("gemini")
         mistral_key = await self._get_provider_key("mistral")
+        openai_key = await self._get_provider_key("openai")
+        anthropic_key = await self._get_provider_key("anthropic")
 
-        if provider == "auto" or provider not in ("gemini", "mistral"):
-            primary, fallback = ("gemini", "mistral") if gemini_key else ("mistral", "gemini")
-        elif provider == "gemini":
-            primary, fallback = "gemini", "mistral"
+        available_providers = []
+        if gemini_key: available_providers.append("gemini")
+        if mistral_key: available_providers.append("mistral")
+        if openai_key: available_providers.append("openai")
+        if anthropic_key: available_providers.append("anthropic")
+
+        # ── Resolve provider order ──────────────────────────────────────────
+        if provider != "auto":
+            # Strict mode: use exactly what was requested
+            if provider in available_providers:
+                primary = provider
+                fallback = None
+            else:
+                # Requested specific but not available -> trigger simulation for THIS provider
+                logger.warning(f"[{request_id}] Requested provider {provider} not available. Using simulation.")
+                model_names = {
+                    "gemini": "Gemini 1.5 Flash",
+                    "mistral": "Mistral Large",
+                    "openai": "GPT-4o",
+                    "anthropic": "Claude 3.5 Sonnet"
+                }
+                m_name = model_names.get(provider, "Unknown Model")
+                return _simulate(provider, m_name, prompt, request_id)
         else:
-            primary, fallback = "mistral", "gemini"
+            # Auto-routing logic (fallback allowed)
+            if not available_providers:
+                primary, fallback = "gemini", None # Will trigger simulation
+            else:
+                primary = available_providers[0]
+                fallback = available_providers[1] if len(available_providers) > 1 else None
 
         # ── Rate limit ────────────────────────────────────────────────────────
         allowed = await self.rate_limiter.acquire(user_id, primary)
@@ -216,9 +260,8 @@ class LLMProxy:
 
         # ── Fallback on transient errors ──────────────────────────────────────
         if isinstance(result, ProxyError) and result.code not in (400, 401, 403):
-            # Check fallback key availability
-            current_fallback_key = gemini_key if fallback == "gemini" else mistral_key
-            if current_fallback_key:
+            # Check fallback availability
+            if fallback:
                 logger.info(f"[{request_id}] Provider {primary} failed ({result.code}), trying {fallback}")
                 result = await self._call_with_retry(fallback, wrapped, max_tokens, temperature, request_id)
 
@@ -239,8 +282,14 @@ class LLMProxy:
             try:
                 if provider == "gemini":
                     result = await self._call_gemini(prompt, max_tokens, temperature, request_id)
-                else:
+                elif provider == "mistral":
                     result = await self._call_mistral(prompt, max_tokens, temperature, request_id)
+                elif provider == "openai":
+                    result = await self._call_openai(prompt, max_tokens, temperature, request_id)
+                elif provider == "anthropic":
+                    result = await self._call_anthropic(prompt, max_tokens, temperature, request_id)
+                else:
+                    return ProxyError(code=400, message=f"Unknown provider: {provider}", request_id=request_id)
 
                 if isinstance(result, ProxyResponse):
                     return result
@@ -331,12 +380,93 @@ class LLMProxy:
         except Exception as e:
             return ProxyError(code=500, message=str(e), request_id=request_id)
 
+    async def _call_openai(self, prompt, max_tokens, temperature, request_id) -> "ProxyResponse | ProxyError":
+        api_key = await self._get_provider_key("openai")
+        if not api_key:
+            return _simulate("openai", OPENAI_MODEL, prompt, request_id)
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": OPENAI_MODEL,
+            "messages": [
+                {"role": "system", "content": SECURITY_PREAMBLE},
+                {"role": "user", "content": prompt},
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(OPENAI_URL, headers=headers, json=payload)
+            if resp.status_code != 200:
+                return ProxyError(code=resp.status_code, message=f"OpenAI error {resp.status_code}: {resp.text[:200]}", request_id=request_id)
+            data = resp.json()
+            usage = data.get("usage", {})
+            return ProxyResponse(
+                text=data["choices"][0]["message"]["content"],
+                provider="openai",
+                model=OPENAI_MODEL,
+                prompt_tokens=usage.get("prompt_tokens", 0),
+                completion_tokens=usage.get("completion_tokens", 0),
+                latency_ms=0,
+                request_id=request_id,
+            )
+        except Exception as e:
+            return ProxyError(code=500, message=str(e), request_id=request_id)
+
+    async def _call_anthropic(self, prompt, max_tokens, temperature, request_id) -> "ProxyResponse | ProxyError":
+        api_key = await self._get_provider_key("anthropic")
+        if not api_key:
+            return _simulate("anthropic", ANTHROPIC_MODEL, prompt, request_id)
+
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": ANTHROPIC_MODEL,
+            "system": SECURITY_PREAMBLE,
+            "messages": [
+                {"role": "user", "content": prompt},
+            ],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(ANTHROPIC_URL, headers=headers, json=payload)
+            if resp.status_code != 200:
+                return ProxyError(code=resp.status_code, message=f"Anthropic error {resp.status_code}: {resp.text[:200]}", request_id=request_id)
+            data = resp.json()
+            usage = data.get("usage", {})
+            return ProxyResponse(
+                text=data["content"][0]["text"],
+                provider="anthropic",
+                model=ANTHROPIC_MODEL,
+                prompt_tokens=usage.get("input_tokens", 0),
+                completion_tokens=usage.get("output_tokens", 0),
+                latency_ms=0,
+                request_id=request_id,
+            )
+        except Exception as e:
+            return ProxyError(code=500, message=str(e), request_id=request_id)
+
 
 def _simulate(provider: str, model: str, prompt: str, request_id: str) -> ProxyResponse:
     """Graceful fallback when no API key is configured."""
-    key_name = "GEMINI_API_KEY" if provider == "gemini" else "MISTRAL_API_KEY"
+    key_names = {
+        "gemini": "GEMINI_API_KEY",
+        "mistral": "MISTRAL_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY"
+    }
+    key_name = key_names.get(provider, "API_KEY")
     return ProxyResponse(
-        text=f"[SIMULATION] {provider.capitalize()} key not configured. Set {key_name} in your .env file.",
+        text=f"[SIMULATION] {provider.capitalize()} key not configured. Set {key_name} in your .env file or Dashboard settings.",
         provider=provider,
         model=f"{model} (simulated)",
         prompt_tokens=len(prompt.split()),

@@ -216,6 +216,14 @@ async def scan_prompt(request: PromptRequest, req: Request, user_id: str = Depen
     )
 
 
+@router.get("/proxy/providers")
+async def get_providers():
+    """
+    Returns a list of available AI providers with configured API keys.
+    """
+    return await llm_proxy.get_available_providers()
+
+
 @router.post("/process_prompt", response_model=ProcessedResponse)
 async def process_prompt(request: PromptRequest, req: Request, user_id: str = Depends(get_current_user_id)):
     log_shadow_usage("/process_prompt")
@@ -292,7 +300,7 @@ async def process_prompt(request: PromptRequest, req: Request, user_id: str = De
 
     # 8. Forward to real LLM proxy
     proxy_result = await llm_proxy.route_request(
-        provider="auto",
+        provider=request.provider,
         prompt=final_prompt,
         user_id=request.user_id,
     )

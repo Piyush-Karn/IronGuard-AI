@@ -38,6 +38,7 @@ export interface PromptRequest {
   user_email?: string;
   prompt: string;
   conversation_id?: string;
+  provider?: string;
 }
 
 export interface AttackFrequencyData {
@@ -203,6 +204,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
+  getAvailableProviders: () => request<string[]>("/proxy/providers"),
+
   // --- Secure Gateway AI Access ---
   scanPrompt: async (data: PromptRequest) => {
     const payload = JSON.stringify(data);

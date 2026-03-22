@@ -4,7 +4,7 @@ import { useUser, useClerk } from "@clerk/clerk-react";
 import CodeLoader from "@/components/ui/CodeLoader";
 import { api, ScanResponse, RiskExplanation } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
-import { Shield, Send, AlertTriangle, CheckCircle, XCircle, ArrowUp, Plus, Lock, BarChart3, Loader2, LayoutDashboard, History, BookOpen, Trophy, Info } from "lucide-react";
+import { Shield, Send, AlertTriangle, CheckCircle, XCircle, ArrowUp, Plus, Lock, BarChart3, Loader2, LayoutDashboard, History, BookOpen, Trophy, Info, Cpu, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
@@ -329,6 +329,7 @@ const UserAnalyser = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [provider, setProvider] = useState("auto");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -341,6 +342,19 @@ const UserAnalyser = () => {
     ),
     enabled: !!user,
   });
+
+  const { data: activeProviders } = useQuery({
+    queryKey: ["activeProviders"],
+    queryFn: () => api.getAvailableProviders(),
+    refetchInterval: 30000,
+  });
+
+  const allProviders = [
+    { id: "gemini", name: "Google Gemini" },
+    { id: "mistral", name: "Mistral Large" },
+    { id: "openai", name: "OpenAI GPT-4o" },
+    { id: "anthropic", name: "Claude 3.5" },
+  ];
 
   // Block browser back navigation
   useEffect(() => {
@@ -381,6 +395,7 @@ const UserAnalyser = () => {
         user_id: user?.id || "anonymous",
         user_email: user?.primaryEmailAddress?.emailAddress || undefined,
         prompt: userMsg.content,
+        provider: provider,
       });
       const result = mapBackendToFrontend(response);
       const analysisMsg: Message = { id: (Date.now() + 1).toString(), type: "analysis", content: "", result };
@@ -555,6 +570,28 @@ const UserAnalyser = () => {
             className="relative z-20 flex-shrink-0 pb-4 pt-2 px-4"
           >
             <div className="max-w-3xl mx-auto">
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] transition-colors cursor-pointer group relative">
+                  <Cpu className="h-3 w-3 text-blue-400/60" />
+                  <select 
+                    value={provider} 
+                    onChange={(e) => setProvider(e.target.value)}
+                    className="bg-transparent text-[10px] text-white/50 font-bold outline-none cursor-pointer appearance-none uppercase tracking-widest pr-4"
+                  >
+                    <option value="auto" className="bg-[#0a0a0a]">Auto-Route</option>
+                    {allProviders
+                      .filter(p => activeProviders?.includes(p.id))
+                      .map(p => (
+                        <option key={p.id} value={p.id} className="bg-[#0a0a0a]">{p.name}</option>
+                      ))
+                    }
+                  </select>
+                  <ChevronDown className="h-2.5 w-2.5 text-white/20 absolute right-2 pointer-events-none" />
+                </div>
+                <div className="h-4 w-[1px] bg-white/10 mx-1" />
+                <span className="text-[10px] text-white/20 font-medium uppercase tracking-tighter">Security Mode: Active</span>
+              </div>
+
               <div className="relative rounded-2xl border border-white/[0.08] bg-black/60 backdrop-blur-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.3)] transition-all duration-300 focus-within:border-white/[0.15]">
                 <textarea
                   ref={textareaRef}
@@ -578,7 +615,7 @@ const UserAnalyser = () => {
                 </button>
               </div>
               <p className="text-center text-[10px] text-white/15 mt-2">
-                IronGuard AI analyses prompts locally for security threats. Press Enter to send.
+                IronGuard AI analyses prompts against multiple models for enhanced truthfulness.
               </p>
             </div>
           </motion.div>
