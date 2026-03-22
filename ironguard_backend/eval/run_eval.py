@@ -252,9 +252,8 @@ async def main():
     )
 
     # ── Step 5: Run evaluation ────────────────────────────────────────────────
-    # Fix 4: semaphore=10 for fast mode (async I/O), =3 for full (CPU-bound DeBERTa)
-    semaphore_limit = 10 if _fast_mode else 3
-    eval_output = await run_evaluation(entries, semaphore_limit=semaphore_limit, fast_mode=_fast_mode)
+    # New architecture handles batching natively, no semaphore needed at calling level.
+    eval_output = await run_evaluation(entries)
     results = eval_output["results"]
     metadata = eval_output["run_metadata"]
 

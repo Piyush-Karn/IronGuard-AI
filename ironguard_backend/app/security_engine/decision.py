@@ -57,60 +57,100 @@ class DecisionEngineV2:
     async def evaluate_request(
         self,
         prompt: str,
-        user_id: str = "anonymous",      # NEW
-        session_id: Optional[str] = None, # NEW
+        user_id: str = "anonymous",
+        session_id: Optional[str] = None,
     ) -> Tuple[str, RiskExplanation, str, ClassifierResult, FingerprintResult, SanitizationResult | None]:
-        """
-        Fully async evaluation. Returns:
-          - RiskExplanation  (score, classification, reasons, attack_types)
-          - action string    (Passed / Sanitized / Blocked)
-          - ClassifierResult (for logging)
-          - FingerprintResult (for logging)
-          - SanitizationResult | None (set only if sanitization path was taken)
-        """
 
-        # ── 0. Normalise ──────────────────────────────────────────────────────
+        # ── 0. Normalize ──────────────────────────────────────────────────────
         prompt = normalize_prompt(prompt)
 
-        # ── 0.1 Context Prefetch (Feature 1) ──────────────────────────────────
+        # ── 0.1 Context Prefetch ──────────────────────────────────────────────
         from app.context.context_builder import context_builder
         context_bonus = 0
-        detection_prompt = prompt  # Fix 3: keep original for forwarding
+        detection_prompt = prompt
         if session_id:
             try:
-                detection_prompt, context_bonus = await context_builder.build_context_prompt(session_id, prompt)
+                detection_prompt, context_bonus = await context_builder.build_context_prompt(
+                    session_id, prompt
+                )
             except Exception as e:
                 logger.warning(f"Context prefetch failed (degrading): {e}")
 
-        # ── 1. Guardrails (sync, fast) ────────────────────────────────────────
-        guardrail_result = guardrail_orchestrator.run_all(detection_prompt)
+        # ── TIER 1: Fast Path — Regex + Fingerprint (<5ms) ────────────────────
+        # Run fingerprint check (async but fast — SimHash is <1ms)
+        fp_result = await fingerprint_engine.check(detection_prompt)
 
-        # ── 2. Parallel Detection (all signals concurrently) ──────────────────
-        from app.threat_detection.similarity import similarity_detector
-        loop = asyncio.get_event_loop()
-        
-        fp_task = fingerprint_engine.check(detection_prompt)
-        clf_task = intent_classifier.classify(detection_prompt)
-        sim_task = loop.run_in_executor(None, similarity_detector.detect, detection_prompt) # BUG-6 fix
-
-        fp_result, classifier_result, sim_result = await asyncio.gather(
-            fp_task,
-            clf_task,
-            sim_task,
-            return_exceptions=True,
+        # Run fast scoring synchronously — regex + fingerprint only
+        fast_score, fast_action, fast_reasons, fast_attack_types = risk_scorer.fast_score(
+            detection_prompt,
+            fp_bonus=fp_result.score_bonus,
         )
 
-        # Graceful degradation: if any parallel task threw an exception, use safe defaults
+        # ── SHORT-CIRCUIT: If fast layers give definitive answer, return now ──
+        if fast_action == "Blocked" and context_bonus == 0:
+            # Definitive block from regex/fingerprint alone.
+            # Skip DeBERTa, ChromaDB, behavioral, guardrails entirely.
+            # Build a minimal ClassifierResult (not run, marked as skipped)
+            classifier_result = ClassifierResult(
+                label="SKIPPED",
+                confidence=0.0,
+                is_malicious=False,
+                latency_ms=0.0,
+            )
+
+            risk_explanation = RiskExplanation(
+                risk_score=min(100, fast_score + context_bonus),
+                base_risk_score=fast_score,
+                classification="Malicious",
+                reasons=fast_reasons,
+                attack_types=fast_attack_types,
+            )
+
+            # Autonomous learning: high-confidence new pattern
+            if fast_score >= 60 and not fp_result.is_match:
+                asyncio.create_task(self.maybe_learn(prompt))
+
+            return prompt, risk_explanation, "Blocked", classifier_result, fp_result, None
+
+        # ── TIER 2: Deep Scan — DeBERTa + optional ChromaDB ──────────────────
+        # Only reached for ambiguous prompts (fast_score < 60)
+        # OR when context_bonus pushes score above threshold
+
+        # Run guardrails (sync, fast — stub returns immediately)
+        guardrail_result = guardrail_orchestrator.run_all(detection_prompt)
+
+        # Run DeBERTa classifier (always in Tier 2)
+        # Run ChromaDB ONLY if fast_score is in suspicious zone (30-59)
+        # At fast_score 0-29: ChromaDB has almost no chance of adding enough score to matter
+        # At fast_score 30-59: ChromaDB +30 could push to Blocked
+        loop = asyncio.get_event_loop()
+
+        should_run_chromadb = (fast_score >= 30)  # Only in suspicious zone
+
+        if should_run_chromadb:
+            from app.threat_detection.similarity import similarity_detector
+            clf_result, sim_result = await asyncio.gather(
+                intent_classifier.classify(detection_prompt),
+                loop.run_in_executor(None, similarity_detector.detect, detection_prompt),
+                return_exceptions=True,
+            )
+        else:
+            # Safe zone: DeBERTa only, skip ChromaDB entirely
+            clf_result = await intent_classifier.classify(detection_prompt)
+            sim_result = (False, [], [])  # Empty sim result
+
+        # Graceful degradation
         if isinstance(fp_result, Exception):
             logger.error(f"Fingerprint engine failed: {fp_result}")
             fp_result = FingerprintResult(False, 0, 0.0, "none", None)
 
-        if isinstance(classifier_result, Exception):
-            logger.error(f"Intent classifier failed: {classifier_result}")
-            from app.threat_detection.intent_classifier import ClassifierResult as CR
-            classifier_result = CR(label="SAFE", confidence=0.0, is_malicious=False, latency_ms=0)
+        if isinstance(clf_result, Exception):
+            logger.error(f"Intent classifier failed: {clf_result}")
+            clf_result = ClassifierResult(label="SAFE", confidence=0.0, is_malicious=False, latency_ms=0)
 
-        # ── 2.1 Behavioral Delta (Feature 3) ──────────────────────────────────
+        classifier_result = clf_result
+
+        # ── Behavioral Delta ──────────────────────────────────────────────────
         from app.monitoring.behavioral_analyzer import behavioral_analyzer
         behavioral_bonus = 0
         if user_id and user_id != "anonymous":
@@ -119,7 +159,7 @@ class DecisionEngineV2:
             except Exception as e:
                 logger.warning(f"Behavioral analysis failed (degrading): {e}")
 
-        # ── 3. Risk Scoring ───────────────────────────────────────────────────
+        # ── Full Risk Scoring (Tier 2 signals) ────────────────────────────────
         risk_explanation = risk_scorer.calculate_risk(
             detection_prompt,
             sim_result=sim_result if not isinstance(sim_result, Exception) else None,
@@ -130,7 +170,7 @@ class DecisionEngineV2:
             behavioral_bonus=behavioral_bonus,
         )
 
-        # ── 4. Action Decision ────────────────────────────────────────────────
+        # ── Action Decision ───────────────────────────────────────────────────
         if risk_explanation.classification == "Malicious":
             action = "Blocked"
         elif risk_explanation.classification == "Suspicious":
@@ -138,7 +178,7 @@ class DecisionEngineV2:
         else:
             action = "Passed"
 
-        # ── 5. Sanitization Path ──────────────────────────────────────────────
+        # ── Sanitization Path ─────────────────────────────────────────────────
         sanitization_result: SanitizationResult | None = None
 
         if action == "Sanitized":
@@ -147,24 +187,11 @@ class DecisionEngineV2:
                 detected_patterns=risk_explanation.reasons,
             )
             if sanitization_result.action == "block":
-                # Sanitizer determined it cannot clean the prompt safely
                 action = "Blocked"
-                logger.info(
-                    f"Sanitizer escalated to BLOCK "
-                    f"(method={sanitization_result.method}, "
-                    f"intent_sim={sanitization_result.intent_similarity_score})"
-                )
-            else:
-                logger.info(
-                    f"Sanitizer: method={sanitization_result.method} "
-                    f"intent_preserved={sanitization_result.original_intent_preserved} "
-                    f"sim={sanitization_result.intent_similarity_score}"
-                )
 
-        # ── 6. Autonomous Learning (Feature 2) ─────────────────────────────────
+        # ── Autonomous Learning ───────────────────────────────────────────────
         raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
         if raw_detection_score >= 60 and not fp_result.is_match:
-            # Async background learning
             asyncio.create_task(self.maybe_learn(prompt))
 
         return prompt, risk_explanation, action, classifier_result, fp_result, sanitization_result

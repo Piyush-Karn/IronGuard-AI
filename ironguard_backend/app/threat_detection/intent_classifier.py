@@ -113,6 +113,61 @@ class IntentClassifier:
         )
         return result
 
+    async def classify_batch(
+        self,
+        prompts: list[str],
+        batch_size: int = 32,
+    ) -> list[ClassifierResult]:
+        """
+        Batch inference for eval/simulation use only.
+        Feeds prompts to DeBERTa in batches of `batch_size`.
+        5-6x faster than calling classify() sequentially.
+
+        DO NOT use in production gateway — use classify() for single requests.
+        """
+        if not prompts:
+            return []
+
+        loop = asyncio.get_running_loop()
+
+        def _run_batch(batch: list[str]) -> list[ClassifierResult]:
+            """Blocking batch inference — called via run_in_executor."""
+            if self._pipeline is None:
+                self._load_pipeline()
+
+            import time
+            t0 = time.time()
+            # HuggingFace pipeline accepts a list — processes as a true batch on CPU
+            raw_results = self._pipeline(
+                batch,
+                truncation=True,
+                max_length=512,
+                batch_size=len(batch),  # process all at once
+                padding=True,
+            )
+            batch_latency_ms = (time.time() - t0) * 1000
+            per_item_latency = batch_latency_ms / len(batch)
+
+            return [
+                ClassifierResult(
+                    label="PROMPT_INJECTION" if r["label"] == "INJECTION" else "SAFE",
+                    confidence=round(r["score"], 4),
+                    is_malicious=(
+                        r["label"] == "INJECTION" and r["score"] >= CONFIDENCE_THRESHOLD
+                    ),
+                    latency_ms=round(per_item_latency, 1),
+                )
+                for r in raw_results
+            ]
+
+        all_results: list[ClassifierResult] = []
+        for i in range(0, len(prompts), batch_size):
+            batch = prompts[i : i + batch_size]
+            batch_results = await loop.run_in_executor(None, _run_batch, batch)
+            all_results.extend(batch_results)
+
+        return all_results
+
     # ── Model swap ────────────────────────────────────────────────────────────
 
     async def swap_model(self, new_model_name: str):

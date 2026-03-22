@@ -41,6 +41,61 @@ class RiskScorer:
             "guardrail_fail":    30,
         }
 
+    def fast_score(
+        self,
+        prompt: str,
+        fp_bonus: int = 0,
+    ) -> tuple[int, str, list[str], list[str]]:
+        """
+        Fast scoring using only Layer 1 (regex) and Layer 4 (fingerprint).
+        Returns (score, action, reasons, attack_types).
+        Called BEFORE DeBERTa and ChromaDB.
+        No async — fully synchronous, runs in <5ms.
+
+        Returns action:
+          "Blocked"    → score >= 60, skip DeBERTa entirely
+          "Suspicious" → score 30-59, run DeBERTa + optionally ChromaDB
+          "Safe"       → score 0-29, run DeBERTa only (lightweight check)
+        """
+        score = 0
+        reasons = []
+        attack_types = set()
+
+        # Layer 1: Regex + fuzzy
+        pat_malicious, pat_reasons, pat_types = pattern_detector.detect(prompt)
+
+        if pat_malicious:
+            # Hard block categories: return 100 immediately, no further checks needed
+            matched_hard = [t for t in pat_types if t in HARD_BLOCK_CATEGORIES]
+            if matched_hard:
+                return 100, "Blocked", pat_reasons, pat_types
+
+            # PII: lower weight (sanitize, not block)
+            if len(pat_types) == 1 and list(pat_types)[0] == "Personal Information":
+                score += 30
+            else:
+                score += self.weights["pattern_match"]  # +60
+
+            reasons.extend(pat_reasons)
+            attack_types.update(pat_types)
+
+        # Layer 4: Fingerprint bonus
+        if fp_bonus > 0:
+            score += fp_bonus
+            reasons.append(f"Prompt matches a known jailbreak fingerprint pattern (+{fp_bonus})")
+            attack_types.add("Jailbreak Fingerprint Match")
+
+        score = min(100, score)
+
+        if score >= 60:
+            action = "Blocked"
+        elif score >= 30:
+            action = "Suspicious"
+        else:
+            action = "Safe"
+
+        return score, action, reasons, list(attack_types)
+
     def calculate_risk(
         self,
         prompt: str,
