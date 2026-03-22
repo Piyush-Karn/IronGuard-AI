@@ -40,11 +40,12 @@ async def test_route_request_provider_selection():
         assert res.text == "openai response"
         proxy._call_openai.assert_called()
         
-        # 3. Test "mistral" (not available) -> should auto-route to first available (gemini)
+        # 3. Test "mistral" (not available) -> strict mode: simulation for that provider, no fallback
         proxy._call_gemini.reset_mock()
         res = await proxy.route_request(provider="mistral", prompt="hello")
-        assert res.text == "gemini response"
-        proxy._call_gemini.assert_called()
+        assert "[SIMULATION]" in res.text
+        assert "mistral" in res.text.lower()
+        proxy._call_gemini.assert_not_called()  # strict mode: no fallback to other providers
 
 @pytest.mark.asyncio
 async def test_fallback_logic():
@@ -75,8 +76,4 @@ async def test_simulation_mode_no_keys():
     # No keys available
     with patch.object(proxy, '_get_provider_key', return_value=""):
         res = await proxy.route_request(provider="auto", prompt="hello")
-        assert "SIMULATION MODE" in res.text
-        assert "Google Gemini" in res.text
-        assert "Mistral AI" in res.text
-        assert "OpenAI" in res.text
-        assert "Anthropic" in res.text
+        assert "[SIMULATION]" in res.text

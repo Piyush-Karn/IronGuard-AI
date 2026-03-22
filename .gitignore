@@ -44,6 +44,8 @@ dist-ssr/
 
 # Backend local test artifacts
 ironguard_backend/test_output.txt
+ironguard_backend/pytest_results.txt
+ironguard_backend/pytest_fail_details.txt
 
 # OS
 .DS_Store

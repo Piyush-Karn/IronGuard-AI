@@ -270,7 +270,7 @@ async def process_prompt(request: PromptRequest, req: Request, user_id: str = De
     # 6. If blocked — return immediately
     if action == "Blocked":
         threat_log = ThreatLog(
-            user_id=request.user_id,
+            user_id=user_id,
             user_email=request.user_email,
             prompt=request.prompt,
             risk_score=risk_explanation.risk_score,
@@ -302,7 +302,7 @@ async def process_prompt(request: PromptRequest, req: Request, user_id: str = De
     proxy_result = await llm_proxy.route_request(
         provider=request.provider,
         prompt=final_prompt,
-        user_id=request.user_id,
+        user_id=user_id,
     )
 
     if isinstance(proxy_result, ProxyError):

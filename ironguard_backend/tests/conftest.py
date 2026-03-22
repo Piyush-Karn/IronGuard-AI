@@ -9,7 +9,7 @@ from fastapi import FastAPI
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Set encryption key for test consistency
-os.environ["IG_SECRET_ENCRYPTION_KEY"] = "F8p3_P_V6E-W8H3Y5W-0H8X8W-X8W8X8W8X8W8X8W="
+os.environ["IG_SECRET_ENCRYPTION_KEY"] = "ZNP7qIE64keuTn8OcWn5EZYcDMuc3XGtiJp6Y75iAyI="
 
 @pytest.fixture(autouse=True)
 def mock_services():
