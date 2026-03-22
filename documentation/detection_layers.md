@@ -1,61 +1,133 @@
-# IronGuard Detection Layers
+# 🔍 IronGuard Detection Layers
 
-IronGuard uses a **Hybrid Multi-Layer Detection Strategy** to identify and block security threats in real-time. The pipeline is orchestrated by the Decision Engine v2 for maximum protection and low latency.
-
-## Layer 0: Ingress Normalizer (NFKC)
-The first step for every prompt entering the gateway.
-- **Normalization**: Applies Unicode NFKC (Normalization Form Compatibility Composition) to flatten the text.
-- **Security**: Protects against homoglyph attacks (e.g., using a Cyrillic 'а' instead of 'a'), hidden control characters, and encoding bypasses that aim to slip past regex patterns.
+> IronGuard uses a **Hybrid Multi-Layer Detection Strategy** to identify and block security threats in real-time. The pipeline is orchestrated by the **Decision Engine v2** for maximum protection and minimum latency.
 
 ---
 
-## Layer 1: Pattern Detector (Regex & Fuzzy Match)
-Managed by `app/threat_detection/pattern.py`.
-- **Comprehensive Library**: 150+ regex patterns covering Prompt Injection, System Prompt Leak, and Jailbreaks.
-- **Hard Blocks**: Critical categories (Violence, Sexual Content, etc.) trigger an immediate 100/100 risk score and skip further processing.
+## Pipeline Overview
+
+```
+Incoming Prompt
+      │
+      ▼
+┌─────────────────────────┐
+│  Layer 0: NFKC Normalizer│  ← Homoglyph & encoding bypass protection
+└────────────┬────────────┘
+             │
+      ┌──────┴──────────────────────────────┐
+      │         Parallel Execution          │
+      ├──────────┬──────────┬───────────────┤
+      ▼          ▼          ▼               ▼
+  Layer 1     Layer 2    Layer 3        Layer 4
+  Pattern     Semantic    Intent        Fingerprint
+  Detector    Analyzer   Classifier     Engine
+      │          │          │               │
+      └──────────┴──────────┴───────────────┘
+                            │
+                            ▼
+                    ┌───────────────┐
+                    │  Risk Scorer  │
+                    └───────┬───────┘
+                            │
+                    ┌───────▼───────┐
+                    │Decision Engine│
+                    └───────┬───────┘
+                    ┌───────┴──────────┐
+              Block / Sanitize / Pass
+```
 
 ---
 
-## Layer 2: Semantic Analyzer (Vector Similarity)
-Managed by `app/threat_detection/semantic.py`.
-- **Vector Search**: Compares prompts against a "Threat Gallery" stored in ChromaDB using `all-MiniLM-L6-v2` embeddings.
-- **Dynamic Thresholding**: Uses distance-based scoring to flag novel variations of known attacks.
+## Layer 0 — Ingress Normalizer (NFKC)
+
+The **first step** for every prompt entering the gateway.
+
+| Property | Detail |
+|----------|--------|
+| **Method** | Unicode NFKC (Normalization Form Compatibility Composition) |
+| **Protects Against** | Homoglyph attacks (e.g., Cyrillic `а` instead of Latin `a`), hidden control characters, encoding bypasses |
+
+> **Example**: `Wrіte a scrіpt` (Cyrillic `і`) → normalized to → `Write a script` → caught by Layer 1
 
 ---
 
-## Layer 3: Intent Classifier (Contextual AI Layer)
-Managed by `app/threat_detection/intent_classifier.py`.
-- **Transformer-based**: Utilizes a `protectai/deberta-v3-base-prompt-injection-v2` model.
-- **Contextual Awareness**: Analyzes underlying intent rather than just keywords, catching roleplay, social engineering, and indirect injections.
-- **Confidence Calibration**: Scores from the classifier are mapped through a non-linear scaling function to ensure high-confidence threats are weighted appropriately.
+## Layer 1 — Pattern Detector (Regex & Fuzzy Match)
+
+**File**: `app/threat_detection/pattern.py`
+
+| Property | Detail |
+|----------|--------|
+| **Coverage** | 150+ regex patterns for Prompt Injection, System Prompt Leak, and Jailbreaks |
+| **Hard Blocks** | Critical categories (Violence, Sexual Content, etc.) immediately return `risk_score: 100` and skip all further processing |
 
 ---
 
-## Layer 4: Fingerprinting Engine (MOD-3) — 100% Local
-Managed by `app/fingerprinting/`.
-- **Exact & Near-Match**: 
-  - **SimHash**: Handles minor character variations (e.g., "Hello" vs "Hell0").
-  - **MinHash LSH**: High-recall overlap detection for long, complex jailbreak payloads.
-- **Autonomous Learning (Privacy First)**: New malicious prompts identified by other layers (with 80+ risk score) are automatically sanitized via **MOD-5 PII Redactor**. This process is **100% Local (Regex/Rule-based)**. No LLM call is made during the learning phase, ensuring zero data leakage and zero extra cost.
+## Layer 2 — Semantic Analyzer (Vector Similarity)
+
+**File**: `app/threat_detection/semantic.py`
+
+| Property | Detail |
+|----------|--------|
+| **Model** | `all-MiniLM-L6-v2` (384-dimensional embeddings) |
+| **Database** | ChromaDB "Threat Gallery" |
+| **Strategy** | Dynamic distance-based thresholding to flag novel variations of known attacks |
 
 ---
 
-## The Weighting System (Decision Engine v2)
+## Layer 3 — Intent Classifier (Contextual AI)
 
-The **Risk Scorer** incorporates a sophisticated weighted aggregation of all detection signals. The final score is not just a sum, but a calibrated reputation signal.
+**File**: `app/threat_detection/intent_classifier.py`
+
+| Property | Detail |
+|----------|--------|
+| **Model** | `protectai/deberta-v3-base-prompt-injection-v2` |
+| **Strength** | Analyzes underlying *intent*, not just keywords — catches roleplay, social engineering, indirect injections |
+| **Scoring** | Non-linear confidence mapping ensures high-confidence threats are weighted appropriately |
+
+---
+
+## Layer 4 — Fingerprinting Engine / MOD-3
+
+**File**: `app/fingerprinting/`
+
+| Algorithm | Use Case |
+|-----------|----------|
+| **SimHash** (64-bit) | Handles minor character variations (e.g., `Hello` vs `Hell0`) via Hamming distance |
+| **MinHash LSH** (128 perms) | High-recall overlap detection for long, complex jailbreak payloads |
+
+### 🧬 Autonomous Learning (Privacy-First)
+
+When a novel threat is detected with `risk_score > 80` and **no existing fingerprint**:
+
+1. **MOD-5 PII Redactor** strips all personal data — **100% locally, no LLM call**
+2. A **SimHash** + **MinHash** signature is generated
+3. The signature is appended to `fingerprint_db.json` via **hot-reload** (no restart needed)
+4. Future identical/similar (≥90%) prompts are blocked in **< 2ms**
+
+---
+
+## ⚖️ Weighting System (Decision Engine v2)
 
 | Signal | Base Weight | Multiplier | Dynamic Max |
-| :--- | :--- | :--- | :--- |
-| **Regex Hard Block** | 100 | x1.0 | 100 |
-| **Intent Classifier (Malicious)** | 65 | x1.2 | 95 |
-| **Fingerprint Match (LSH)** | 45 | x1.1 | 85 |
-| **Semantic Similarity (Chroma)** | 35 | x1.0 | 75 |
-| **User History Penalty** | +15 | x1.0 | +30 |
+|--------|:-----------:|:----------:|:-----------:|
+| Regex Hard Block | 100 | ×1.0 | **100** |
+| Intent Classifier (Malicious) | 65 | ×1.2 | **95** |
+| Fingerprint Match (LSH) | 45 | ×1.1 | **85** |
+| Semantic Similarity (ChromaDB) | 35 | ×1.0 | **75** |
+| User History Penalty | +15 | ×1.0 | **+30** |
 
-### Classification Thresholds:
-- **0–29**: `Safe` (Passes to LLM Proxy Layer).
-- **30–59**: `Suspicious` (Triggers MOD-4 Semantic Sanitization).
-- **60–100**: `Malicious` (Blocked immediately via 403 response).
+### Classification Thresholds
 
-### The "Shield" Mechanism
-If any layer reports a 100% confidence "Hard Block" (e.g., a regex for the internal system prompt), the Decision Engine enters **Emergency Block Mode**, skipping all other calculations to minimize latency and ensure zero-day protection.
+| Score Range | Classification | Action |
+|:-----------:|:--------------:|--------|
+| **0 – 29** | ✅ `Safe` | Passes to LLM Proxy (MOD-1) |
+| **30 – 59** | ⚠️ `Suspicious` | Triggers MOD-4 Semantic Sanitization |
+| **60 – 100** | 🚫 `Malicious` | Blocked immediately (403 response) |
+
+### 🛡️ Emergency Block Mode ("The Shield")
+
+If **any layer** reports a `100%` confidence Hard Block (e.g., a regex match on the internal system prompt), the Decision Engine enters **Emergency Block Mode** — skipping all remaining calculations to minimize latency.
+
+---
+
+<div align="right"><a href="./README.md">← Back to README</a></div>

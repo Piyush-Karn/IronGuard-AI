@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 CLASSIFIER_MODEL = "protectai/deberta-v3-base-prompt-injection-v2"
 
 # Confidence threshold above which the classifier fires
-CONFIDENCE_THRESHOLD = 0.80
+CONFIDENCE_THRESHOLD = 0.75  # was 0.80 — lowered to catch borderline injections
 
 # IronGuard label when injection is detected
 INJECTION_LABEL = "PROMPT_INJECTION"

@@ -71,7 +71,7 @@ def wrap_prompt(
 
 
 # ── Provider API endpoints ────────────────────────────────────────────────────
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-flash-latest"
 GEMINI_BASE_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     f"{GEMINI_MODEL}:generateContent"

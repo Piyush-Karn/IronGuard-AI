@@ -217,9 +217,10 @@ async def scan_prompt(request: PromptRequest, req: Request, user_id: str = Depen
 
 
 @router.get("/proxy/providers")
-async def get_providers():
+async def get_providers(user_id: str = Depends(get_current_user_id)):
     """
     Returns a list of available AI providers with configured API keys.
+    Requires authentication to prevent probing by unauthenticated callers.
     """
     return await llm_proxy.get_available_providers()
 
@@ -331,7 +332,7 @@ async def process_prompt(request: PromptRequest, req: Request, user_id: str = De
         final_response_text = scan_result.redacted_text or llm_response_text
 
     threat_log = ThreatLog(
-        user_id=request.user_id,
+        user_id=user_id,
         user_email=request.user_email,
         prompt=request.prompt,
         risk_score=risk_score if (risk_score := risk_explanation.risk_score) else 0,
@@ -368,11 +369,15 @@ class SimulateRequest(BaseModel):
 
 
 @router.post("/simulate_attack")
-async def simulate_attack(sim_req: SimulateRequest, req: Request):
+async def simulate_attack(
+    sim_req: SimulateRequest,
+    req: Request,
+    authenticated_user_id: str = Depends(get_current_user_id),
+):
     log_shadow_usage("/simulate_attack")
-    await enforce_verification(sim_req.user_id)
-    prompt_req = PromptRequest(user_id=sim_req.user_id, prompt=sim_req.prompt)
-    return await scan_prompt(prompt_req, req)
+    await enforce_verification(authenticated_user_id)  # use header, not body
+    prompt_req = PromptRequest(user_id=authenticated_user_id, prompt=sim_req.prompt)
+    return await scan_prompt(prompt_req, req, user_id=authenticated_user_id)
 
 
 class UnblockRequest(BaseModel):

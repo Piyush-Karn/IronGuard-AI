@@ -46,7 +46,16 @@ dist-ssr/
 ironguard_backend/test_output.txt
 ironguard_backend/pytest_results.txt
 ironguard_backend/pytest_fail_details.txt
+ironguard_backend/debug_test.py
+ironguard_backend/user_manager_dump.py
+ironguard_backend/seed_data/temp_*
+
+# Eval pipeline runtime outputs (reports & raw JSON kept locally, not in VCS)
+ironguard_backend/results/*.md
+ironguard_backend/results/*.json
+# (results/.gitkeep is committed to keep the dir in git)
 
 # OS
 .DS_Store
 Thumbs.db
+.ipynb_checkpoints/

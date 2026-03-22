@@ -204,7 +204,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
-  getAvailableProviders: () => request<string[]>("/proxy/providers"),
+  getAvailableProviders: (userId: string) =>
+    request<string[]>("/proxy/providers", { headers: { "X-User-Id": userId } }),
 
   // --- Secure Gateway AI Access ---
   scanPrompt: async (data: PromptRequest) => {

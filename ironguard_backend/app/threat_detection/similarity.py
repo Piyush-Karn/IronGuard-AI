@@ -3,7 +3,7 @@ from app.threat_detection.semantic import semantic_analyzer
 from typing import Tuple, List
 
 class SimilarityDetector:
-    def __init__(self, threshold: float = 0.85):
+    def __init__(self, threshold: float = 0.92):
         self.threshold = threshold
 
     def detect(self, prompt: str) -> Tuple[bool, List[str], List[str]]:

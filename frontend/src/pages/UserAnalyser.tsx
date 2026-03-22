@@ -344,9 +344,10 @@ const UserAnalyser = () => {
   });
 
   const { data: activeProviders } = useQuery({
-    queryKey: ["activeProviders"],
-    queryFn: () => api.getAvailableProviders(),
+    queryKey: ["activeProviders", user?.id],
+    queryFn: () => api.getAvailableProviders(user?.id || ""),
     refetchInterval: 30000,
+    enabled: !!user,
   });
 
   const allProviders = [

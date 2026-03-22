@@ -18,6 +18,12 @@ class PatternDetector:
                 r"(?i)ignorez\s*toutes\s*les\s*instructions",   # French
                 r"(?i)ignoriere\s*alle\s*anweisungen",          # German
                 r"(?i)ignora\s*todas\s*las\s*instrucciones",    # Spanish
+                # Forget-then-hijack patterns (FN #1, #2, #5 from baseline)
+                r"(?i)forget\s+everything\s+(we.ve|i.ve|we\s+have|i\s+have)\s+(talked|discussed|said)",
+                r"(?i)forget\s+everything\s+before\s+that",
+                r"(?i)(but\s+)?(now|here)\s+come[s]?\s+new\s+(tasks?|instructions?|orders?)",
+                r"(?i)new\s+statement\s*[-—]\s*please",
+                r"(?i)please\s+return\s+your\s+(embeddings?|weights?|parameters?|model\s+weights?)",
             ],
 
             # ── System Prompt Leak ────────────────────────────────────────────

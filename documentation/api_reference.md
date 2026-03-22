@@ -11,7 +11,9 @@ Evaluates a prompt's risk level using the hybrid detection pipeline (v2) without
   ```json
   {
     "user_id": "string",
-    "prompt": "string"
+    "prompt": "string",
+    "provider": "string",
+    "conversation_id": "string"
   }
   ```
 - **Response**:
@@ -120,6 +122,10 @@ Lists all configured provider keys (masked). Returns `provider`, `is_active`, an
 
 ### `DELETE /api/v1/analytics/keys/{provider}`
 Revokes and deletes a stored API key.
+
+### `GET /api/v1/proxy/providers`
+Returns a list of AI providers that have valid API keys configured and are ready for use.
+- **Response**: `["gemini", "openai", "anthropic", "mistral"]`
 
 ---
 

@@ -12,12 +12,22 @@ The backend tests are located in `ironguard_backend/tests/`.
 Tests must be run inside the Docker container to ensure they have the correct environment and dependencies.
 
 ### Running Tests
+#### Inside Docker (Recommended)
 Execute the following command from your terminal:
 ```bash
 docker exec ironguard_backend-backend-1 pytest /app/tests -vv
 ```
 
-### Mocking Strategy (conftest.py)
+#### Running Locally (for Dev)
+If you have the dependencies installed locally, ensure your `PYTHONPATH` includes the `ironguard_backend` directory:
+```powershell
+# Windows PowerShell
+$env:PYTHONPATH = "path/to/IronGuard-AI/ironguard_backend"
+pytest tests/ -vv
+```
+
+### Mocking & ML Dependencies
+To ensure tests remain fast and don't require heavy ML models (like SentenceTransformers or DeBERTa) to be loaded, we use a global module-level mocking strategy in `conftest.py` and `test_gateway_security.py`. This allows the suite to run on standard CI/CD runners without GPUs or large RAM requirements.
 To ensure isolation and speed, we use a sophisticated mocking strategy:
 - **Isolated App Factory**: Every test receives a fresh `FastAPI` instance via the `client` fixture. This bypasses the global application's middleware and lifespan side effects.
 - **Singleton Patching**: We patch core service singletons (like `user_manager` and `client_registry`) directly on their instances to ensure consistent behavior across all routers.
