@@ -1,82 +1,105 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/IronGuard-AI%20Security%20Gateway-0f172a?style=for-the-badge&logo=shield&logoColor=white" alt="IronGuard"/>
+<br/>
 
-# 🛡️ IronGuard AI Security Gateway
+```
+██╗██████╗  ██████╗ ███╗   ██╗ ██████╗ ██╗   ██╗ █████╗ ██████╗ ██████╗
+██║██╔══██╗██╔═══██╗████╗  ██║██╔════╝ ██║   ██║██╔══██╗██╔══██╗██╔══██╗
+██║██████╔╝██║   ██║██╔██╗ ██║██║  ███╗██║   ██║███████║██████╔╝██║  ██║
+██║██╔══██╗██║   ██║██║╚██╗██║██║   ██║██║   ██║██╔══██║██╔══██╗██║  ██║
+██║██║  ██║╚██████╔╝██║ ╚████║╚██████╔╝╚██████╔╝██║  ██║██║  ██║██████╔╝
+╚═╝╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝
+```
 
-**A production-grade firewall that protects AI systems from prompt injection, data leakage, and adversarial attacks.**
+### AI Security Gateway — Hardened LLM Proxy
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
-[![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=flat-square&logo=mongodb&logoColor=white)](https://www.mongodb.com)
-[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com)
+<br/>
+
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org)
-[![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Motor-47A248?style=flat-square&logo=mongodb&logoColor=white)](https://www.mongodb.com)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com)
+[![HuggingFace](https://img.shields.io/badge/HuggingFace-DeBERTa--v3-FFD21E?style=flat-square&logo=huggingface&logoColor=black)](https://huggingface.co)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-FF6B35?style=flat-square)](https://www.trychroma.com)
 
-[Architecture](#-architecture) · [Quick Start](#-quick-start) · [API Docs](#-api-features) · [Documentation](#-documentation)
+<br/>
+
+> **IronGuard** is a production-grade firewall that sits between your users and any LLM.  
+> Every prompt is scanned, scored, and either passed, sanitized, or blocked — in milliseconds.
+
+<br/>
+
+[Getting Started](#-getting-started) · [Architecture](#%EF%B8%8F-architecture-v2) · [API Features](#-api-features) · [Docs](#-documentation)
+
+<br/>
 
 </div>
 
 ---
 
-## 🔍 What is IronGuard?
-
-IronGuard acts as a **hardened proxy** between users and Large Language Models (LLMs). It intercepts every prompt before it reaches an AI provider, evaluates it across multiple detection layers, and either passes, sanitizes, or blocks it — all in milliseconds.
-
-```
-User Prompt  →  IronGuard (Scan + Sanitize)  →  LLM Provider  →  IronGuard (Response Scan)  →  Safe Output
-```
-
----
-
-## 🏗️ Architecture
+## 🏗️ Architecture v2
 
 IronGuard implements a **4-Module Hybrid Architecture** orchestrated for low latency and maximum protection.
 
-| Module | Name | Description |
-|:------:|------|-------------|
-| **MOD-1** | 🔀 Real LLM Proxy | Routes to free providers (**Gemini Flash**, **Mistral**) with rate limiting and security preambles |
-| **MOD-2** | 🔍 Response Security | Scans and redacts API keys, PII, and harmful content from outgoing LLM responses |
-| **MOD-3** | 🧬 Fingerprint Engine | Sub-millisecond detection of known jailbreaks using **SimHash** and **MinHash LSH** |
-| **MOD-4** | 🧠 Semantic Sanitizer | Neutralizes suspicious prompts while preserving intent using LLM-based rewriting |
+```
+                        ┌─────────────────────────────────────────┐
+  User Prompt  ──────►  │            IronGuard Gateway             │  ──────►  LLM
+                        │                                          │
+                        │  MOD-3 Fingerprint  ◄──┐                │
+                        │  MOD-2 Resp. Security   │  Decision      │
+                        │  MOD-4 Sanitizer    ────┤  Engine v2     │
+                        │  MOD-1 LLM Proxy    ◄──┘                │
+                        └─────────────────────────────────────────┘
+```
 
-> 📖 For a full deep-dive, see the [Architecture Documentation](./architecture.md) and the [Detection Layers Guide](./detection_layers.md).
+| Module | Role | Technology |
+|:------:|------|-----------|
+| **MOD-1** 🔀 | **Real LLM Proxy** — Routes to Gemini Flash (primary) or Mistral (fallback) with security preambles | `httpx` async |
+| **MOD-2** 🔍 | **Response Security** — Scans and redacts API keys, PII, and harmful content from LLM outputs | Regex + rules |
+| **MOD-3** 🧬 | **Fingerprint Engine** — Sub-millisecond detection of known jailbreaks using SimHash & MinHash LSH | Local / no LLM |
+| **MOD-4** 🧠 | **Semantic Sanitizer** — Neutralizes suspicious prompts while preserving user intent | Gemini Flash |
+
+📖 Full details → [Architecture Docs](./architecture.md) · [Detection Layers](./detection_layers.md) · [Deep Dive](./deep_dive.md)
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Getting Started
 
 ### Prerequisites
 
-- 🐳 Docker & Docker Compose
-- 🔑 API Keys for **Gemini** (Primary) and **Mistral** (Fallback)
+| Requirement | Notes |
+|------------|-------|
+| 🐳 Docker + Docker Compose | Recommended deployment method |
+| 🔑 Gemini API Key | Primary LLM provider |
+| 🔑 Mistral API Key | Fallback LLM provider |
 
-### 1. Configure Environment
+### 1 — Configure your environment
 
 Create a `.env` file inside `ironguard_backend/`:
 
 ```env
-GEMINI_API_KEY=your_gemini_key_here
-MISTRAL_API_KEY=your_mistral_key_here
+GEMINI_API_KEY=your_gemini_key
+MISTRAL_API_KEY=your_mistral_key
 ```
 
-### 2. Start the System
+### 2 — Start the system
 
 ```bash
 docker compose up --build -d
 ```
 
-### 3. Initialize the Threat Database
+### 3 — Initialize the threat database
 
 ```bash
 docker compose exec backend python datasets/init_dataset.py
 ```
 
-### 4. Access the Dashboard
+### 4 — Access the interfaces
 
-| Service | URL |
-|---------|-----|
+| Interface | URL |
+|-----------|-----|
 | 🖥️ Admin Dashboard | `http://localhost:5173` |
-| 📚 API Docs (Swagger) | `http://localhost:8000/docs` |
+| 📚 Swagger API Docs | `http://localhost:8000/docs` |
 
 ---
 
@@ -84,10 +107,10 @@ docker compose exec backend python datasets/init_dataset.py
 
 | Feature | Description |
 |---------|-------------|
-| **Parallel Processing** | Uses `asyncio.gather` for minimal security overhead |
-| **NFKC Normalization** | Protects against homoglyph and encoding-based bypasses |
-| **Explainable Risk Scoring** | Detailed risk breakdowns with primary threat classifications |
-| **Admin Dashboard** | Full RBAC-based security monitoring and team management |
+| ⚙️ **Parallel Processing** | `asyncio.gather` runs all detection layers simultaneously for minimal overhead |
+| 🔤 **NFKC Normalization** | Neutralizes homoglyph and Unicode encoding bypass attempts at ingress |
+| 📊 **Explainable Risk Scoring** | Every decision includes a breakdown of contributing threat signals |
+| 👥 **Admin Dashboard** | RBAC-based monitoring, user management, and live threat analytics |
 
 ---
 
@@ -95,13 +118,13 @@ docker compose exec backend python datasets/init_dataset.py
 
 <div align="center">
 
-| Layer | Technology |
-|-------|-----------|
-| ⚡ Async Core | FastAPI |
-| 🗄️ Persistence | MongoDB |
-| 🔎 Vector Search | ChromaDB |
-| 🤗 ML Models | HuggingFace Transformers |
-| 🤖 LLM Providers | Mistral / Gemini Flash |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| ⚡ Async Core | **FastAPI** | High-performance API framework |
+| 🗄️ Persistence | **MongoDB** + Motor | Security logs, user state, encrypted keys |
+| 🔎 Vector Search | **ChromaDB** | Semantic similarity for jailbreak detection |
+| 🤗 ML Models | **HuggingFace** | DeBERTa-v3 intent classifier + MiniLM embeddings |
+| 🤖 LLM Providers | **Gemini / Mistral** | Sanitization rewrites and LLM proxying |
 
 </div>
 
@@ -111,17 +134,17 @@ docker compose exec backend python datasets/init_dataset.py
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](./architecture.md) | System components, data flow, and security rationale |
-| [Detection Layers](./detection_layers.md) | How each detection layer works and scoring weights |
-| [API Reference](./api_reference.md) | Complete endpoint reference with request/response schemas |
-| [Client Integration Guide](./client_integration_guide.md) | HMAC auth + code examples for Python & Node.js |
-| [Database Guide](./database_guide.md) | MongoDB & ChromaDB setup, schema, and maintenance |
-| [Deep Dive](./deep_dive.md) | Advanced technical scenarios for security engineers |
-| [Setup & Deployment](./setup_and_deployment.md) | Local dev, Docker, and production hardening |
-| [Testing Guide](./testing_guide.md) | Running the Pytest & Vitest test suites |
+| [Architecture](./architecture.md) | System components, data flow diagram, security rationale |
+| [Detection Layers](./detection_layers.md) | How each layer works, scoring weights, thresholds |
+| [API Reference](./api_reference.md) | Complete endpoint docs with request/response schemas |
+| [Client Integration](./client_integration_guide.md) | HMAC auth protocol + Python & Node.js examples |
+| [Database Guide](./database_guide.md) | MongoDB collections, ChromaDB setup, maintenance |
+| [Deep Dive](./deep_dive.md) | Advanced internals for security engineers |
+| [Setup & Deployment](./setup_and_deployment.md) | Local dev, Docker, production hardening |
+| [Testing Guide](./testing_guide.md) | Pytest + Vitest test suite instructions |
 
 ---
 
 <div align="center">
-  <sub>Built with ❤️ for AI security. IronGuard — because every prompt is a potential attack vector.</sub>
+  <sub>🛡️ IronGuard — because every prompt is a potential attack vector.</sub>
 </div>
