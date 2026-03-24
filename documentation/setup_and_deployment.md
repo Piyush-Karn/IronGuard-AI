@@ -90,10 +90,42 @@ Create a `.env` file in `ironguard_backend/` with the following values:
 | `GEMINI_API_KEY` | Google AI key for primary detection and sanitization | `AIza...` |
 | `MISTRAL_API_KEY` | Fallback LLM provider key | `...` |
 | `MONGO_URL` | Internal container URL for MongoDB | `mongodb://mongodb:27017/ironguard` |
-| `CHROMA_HOST` | Internal container name for ChromaDB | `chromadb` |
-| `SYSTEM_DASHBOARD_SECRET` | Shared secret between Dashboard and Gateway | `35_1fb20d6f4a8b7c2e_dashboard_secret` |
-| `IG_SECRET_ENCRYPTION_KEY` | 32-byte Fernet key for encrypting provider keys (base64) | `...` |
-| `ADMIN_USER_IDS` | JSON list of Clerk User IDs with admin access | `["user_123"]` |
+| `CHROMA_HOST` | Internal container host for ChromaDB | `chromadb` |
+| `SYSTEM_DASHBOARD_SECRET` | Shared secret for Backend ↔ Dashboard sync | `35_1fb20d6...` |
+| `IG_SECRET_ENCRYPTION_KEY` | 32-byte Fernet key for encrypting provider keys | `...` |
+| `ADMIN_USER_IDS` | Comma-separated list of Admin Clerk User IDs | `user_123,user_456` |
+
+> [!TIP]
+> **API Keys in V2**: While you can start by adding keys to `.env`, it is recommended to manage them through the **Admin Dashboard ➔ Settings ➔ LLM Providers** after setup. Keys in the database are encrypted and allow for zero-downtime rotation.
+
+---
+
+## 🔐 Administrative Setup
+
+After cloning and starting the services, follow these steps to gain control over the engine:
+
+### 1. Identify Your User ID
+Log in to the **IronGuard Dashboard** once. Then, check the backend logs to find your unique Clerk User ID:
+```bash
+docker compose logs backend | grep "User"
+```
+Or find it in the **Users** section of your Clerk Dashboard.
+
+### 2. Grant Admin Privileges
+Open your `.env` file and add your ID to the `ADMIN_USER_IDS` variable:
+```env
+ADMIN_USER_IDS=user_vX8... (your ID here)
+```
+**Restart the backend** to apply the change: `docker compose restart backend`.
+
+### 3. Synchronize System Keys
+For the Dashboard to fetch live logs and stats, it must present the `SYSTEM_DASHBOARD_SECRET`. 
+*   Ensure the secret in your **Backend `.env`** matches the one in your **Frontend `.env`**.
+*   If they mismatch, the dashboard will show "Unauthorized" or empty stats.
+
+### 4. Seed the LLM Proxy
+Go to **Admin Settings ➔ LLM Providers** and enter your Gemini/Mistral keys. These will be encrypted using your `IG_SECRET_ENCRYPTION_KEY` and stored in MongoDB. The engine will prioritize these over the `.env` keys.
+
 
 ---
 

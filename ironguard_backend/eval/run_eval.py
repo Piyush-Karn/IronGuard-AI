@@ -20,6 +20,9 @@ import logging
 import os
 import sys
 
+# EXPLICIT EVAL ISOLATION: Prevent MongoDB/external calls leaking into the pipeline
+os.environ["IRONGUARD_EVAL_MODE"] = "1"
+
 # Silence verbose HF/torch logs during eval
 logging.getLogger("transformers").setLevel(logging.WARNING)
 logging.getLogger("sentence_transformers").setLevel(logging.WARNING)

@@ -13,7 +13,31 @@ import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Tuple, Literal
+from dataclasses import dataclass, asdict
+from datetime import datetime, timezone
+from collections import Counter
+
+# ── Fingerprint Metadata Schema ────────────────────────────────────────────────
+
+@dataclass
+class FingerprintEntry:
+    hash: int                   # SimHash is stored as int
+    source: Literal["eval", "prod", "simulation", "manual", "unknown"]
+    added_at: datetime
+    attack_type: str
+    confidence: float           # 0.0-1.0
+    prompt_preview: str         # First 50 chars
+
+
+# ── Audit Time Windows (UTC) ──────────────────────────────────────────────────
+# Used by get_db_stats() to isolate eval-related contamination.
+
+V9_RUN_START  = datetime(2026, 3, 22,  7,  0,  0, tzinfo=timezone.utc)
+V9_RUN_END    = datetime(2026, 3, 22, 14, 53, 15, tzinfo=timezone.utc)
+
+V10_RUN_START = datetime(2026, 3, 22, 14, 53, 15, tzinfo=timezone.utc)
+V10_RUN_END   = datetime(2026, 3, 22, 18, 14, 18, tzinfo=timezone.utc)
 
 from datasketch import MinHash, MinHashLSH
 
@@ -69,6 +93,7 @@ class FingerprintEngine:
         self._canonical_embeddings: list = []
         self._encoder = None   # set via initialize() to avoid circular import
         self._loaded = False
+        self._entries: List[FingerprintEntry] = []
 
     def _simhash(self, text: str) -> int:
         """
@@ -98,32 +123,64 @@ class FingerprintEngine:
         self.simhash_store.clear()
         self._minhash_index.clear()
         self._canonical_forms.clear()
+        self._entries = []
         self.minhash_lsh = MinHashLSH(threshold=MINHASH_JACCARD_THRESHOLD, num_perm=128)
 
-        data = json.loads(FINGERPRINT_DB_PATH.read_text(encoding="utf-8"))
-        count = 0
-        for item in data.get("jailbreaks", []):
-            form = item.get("canonical_form", "").lower().strip()
-            if not form:
-                continue
+        try:
+            data = json.loads(FINGERPRINT_DB_PATH.read_text(encoding="utf-8"))
+            count = 0
+            jailbreaks = data.get("jailbreaks", [])
+            for item in jailbreaks:
+                form = item.get("canonical_form", "").lower().strip()
+                # If canonical_form is missing (new schema uses prompt_preview/hash only), we fallback
+                if not form and "prompt_preview" in item:
+                    form = item["prompt_preview"].lower().strip()
+                
+                if not form:
+                    # If absolutely no text to index, skip
+                    if "hash" not in item: continue
+                    form = f"Entry_{count}"
 
-            # --- SimHash ---
-            sh = self._simhash(form)
-            self.simhash_store.add(form, sh)
+                # Metadata Backfill
+                added_at_raw = item.get("added_at")
+                if added_at_raw:
+                    ts_str = added_at_raw.replace("Z", "+00:00")
+                    added_at = datetime.fromisoformat(ts_str)
+                else:
+                    added_at = datetime(2026, 3, 1, 0, 0, 0, tzinfo=timezone.utc)
 
-            # --- MinHash ---
-            mh = MinHash(num_perm=128)
-            for token in form.split():
-                mh.update(token.encode())
-            # MinHashLSH.insert requires unique keys
-            key = f"fp_{count}"
-            self.minhash_lsh.insert(key, mh)
-            self._minhash_index[key] = (mh, form)
-            self._canonical_forms.append(form)
-            count += 1
+                sh = item.get("hash")
+                if sh is None:
+                    sh = self._simhash(form)
+                
+                entry = FingerprintEntry(
+                    hash=int(sh),
+                    source=item.get("source", "unknown"),
+                    added_at=added_at,
+                    attack_type=item.get("attack_type", "Unknown Attack"),
+                    confidence=item.get("confidence", 1.0),
+                    prompt_preview=item.get("prompt_preview", form[:50])
+                )
+                self._entries.append(entry)
 
-        self._loaded = True
-        logger.info(f"Fingerprint engine loaded {count} canonical forms")
+                # --- 1. SimHash Indexing ---
+                self.simhash_store.add(form, entry.hash)
+
+                # --- 2. MinHash LSH Indexing ---
+                mh = MinHash(num_perm=128)
+                for token in form.split():
+                    mh.update(token.encode())
+                
+                key = f"fp_{count}"
+                self.minhash_lsh.insert(key, mh)
+                self._minhash_index[key] = (mh, form)
+                self._canonical_forms.append(form)
+                count += 1
+
+            self._loaded = True
+            logger.info(f"Fingerprint engine loaded {count} entries with metadata")
+        except Exception as e:
+            logger.error(f"Failed to load fingerprint DB: {e}")
 
     def set_encoder(self, encoder):
         """Attach a pre-loaded SentenceTransformer encoder for cosine similarity."""
@@ -213,6 +270,52 @@ class FingerprintEngine:
             method_used=method_used,
             matched_canonical=matched_canonical,
         )
+
+    async def get_db_stats(self) -> dict:
+        """
+        Returns audit statistics for the fingerprint database.
+        Identifies potential eval-period contamination.
+        """
+        entries = self._entries
+        by_source = Counter(e.source for e in entries)
+        
+        # Windowed hits (UTC)
+        v9_hits = [e for e in entries if V9_RUN_START <= e.added_at < V9_RUN_END]
+        v10_hits = [e for e in entries if V10_RUN_START <= e.added_at < V10_RUN_END]
+        
+        # Only consider entries after the backfill date for range matching
+        epoch = datetime(2026, 3, 1, 1, 0, 0, tzinfo=timezone.utc)
+        real_dated = [e for e in entries if e.added_at > epoch]
+        
+        stats = {
+            "audit_timestamp": datetime.now(timezone.utc).isoformat(),
+            "summary": {
+                "total_entries": len(entries),
+                "by_source": dict(by_source),
+            },
+            "eval_contamination_check": {
+                "v9_run_start": V9_RUN_START.isoformat(),
+                "v9_run_end":   V9_RUN_END.isoformat(),
+                "count_added_during_v9": len(v9_hits),
+                "v10_run_start": V10_RUN_START.isoformat(),
+                "v10_run_end":   V10_RUN_END.isoformat(),
+                "count_added_during_v10": len(v10_hits),
+            },
+            "temporal_bounds": {
+                "oldest_entry": min((e.added_at for e in real_dated), default=None),
+                "newest_entry": max((e.added_at for e in real_dated), default=None),
+            }
+        }
+        
+        count = len(v9_hits)
+        if count > 500:
+            stats["audit_verdict"] = "FAILURE: Critical contamination detected. Purge required."
+        elif count < 50:
+            stats["audit_verdict"] = "WARNING: Low attribution. Check logic."
+        else:
+            stats["audit_verdict"] = "INCONCLUSIVE: Review required."
+            
+        return stats
 
 
 # Module-level singleton

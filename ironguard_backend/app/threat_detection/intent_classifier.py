@@ -81,8 +81,12 @@ class IntentClassifier:
             self._load_pipeline()
 
         t0 = time.time()
+        
+        # Prevent tokenizer hang on extremely long inputs
+        prompt_capped = prompt[:10000]
+        
         # Returns: [{"label": "INJECTION", "score": 0.97}]
-        result = self._pipeline(prompt, truncation=True, max_length=512)[0]
+        result = self._pipeline(prompt_capped, truncation=True, max_length=512)[0]
         latency_ms = (time.time() - t0) * 1000
 
         raw_label: str = result["label"]    # "INJECTION" or "SAFE"
@@ -137,9 +141,13 @@ class IntentClassifier:
 
             import time
             t0 = time.time()
+            
+            # Prevent tokenizer hang on extremely long inputs
+            batch_capped = [p[:10000] for p in batch]
+            
             # HuggingFace pipeline accepts a list — processes as a true batch on CPU
             raw_results = self._pipeline(
-                batch,
+                batch_capped,
                 truncation=True,
                 max_length=512,
                 batch_size=len(batch),  # process all at once

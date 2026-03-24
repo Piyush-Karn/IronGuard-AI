@@ -177,10 +177,10 @@ async def scan_prompt(request: PromptRequest, req: Request, user_id: str = Depen
             request.conversation_id, user_id, request.prompt, risk_explanation.risk_score
         ))
 
-    # 4. Trust score update
-    await user_behavior_monitor.update_trust_score(
+    # 4. Trust score update (fire-and-forget to prevent blocking)
+    asyncio.create_task(user_behavior_monitor.update_trust_score(
         user_id, risk_explanation.classification
-    )
+    ))
 
     # 5. Build classifier snapshot for logging
     classifier_output = ClassifierOutput(
@@ -255,10 +255,10 @@ async def process_prompt(request: PromptRequest, req: Request, user_id: str = De
             request.conversation_id, user_id, request.prompt, risk_explanation.risk_score
         ))
 
-    # 4. Trust score update
-    await user_behavior_monitor.update_trust_score(
+    # 4. Trust score update (fire-and-forget to prevent blocking)
+    asyncio.create_task(user_behavior_monitor.update_trust_score(
         user_id, risk_explanation.classification
-    )
+    ))
 
     # 5. Build classifier output for logging
     classifier_output = ClassifierOutput(

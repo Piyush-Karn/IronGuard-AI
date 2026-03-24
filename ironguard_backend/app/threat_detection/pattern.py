@@ -3,6 +3,107 @@ from typing import List, Tuple
 from rapidfuzz import fuzz
 
 
+# ── Context Guard Constants ────────────────────────────────────────────────────
+# These are pure string-match lookups — 0ms overhead, no model calls.
+
+FICTIONAL_NAMES = [
+    "goofy", "daenerys", "targaryen", "james bond", "007", "batman",
+    "spiderman", "spider-man", "sherlock", "hermione", "voldemort", "gandalf",
+]
+FICTIONAL_GAMES = [
+    "call of duty", " cod ", "grand theft auto", " gta ", "fortnite",
+    "minecraft", "roblox", "valorant", "halo", "doom", "mortal kombat",
+]
+HISTORICAL_ENTITIES = [
+    "genocide", "massacre", "ethnic cleansing", "war crimes", "holocaust",
+    "apartheid", "slavery", "gulag", "internment", "pogrom", "inquisition",
+]
+HISTORICAL_NAMED_EVENTS = [
+    "rwandan", "armenian", "bosnian", "cambodian", "nanjing",
+    "tiananmen", "auschwitz", "yugoslavia", "charlottesville", "charleston",
+]
+QUESTION_STARTERS = [
+    "what ", "why ", "how ", "when ", "where ", "who ",
+    "explain ", "describe ", "tell me", "can you explain",
+]
+
+
+def is_question_intent(prompt: str) -> bool:
+    """
+    Returns True if prompt is seeking information (not issuing an instruction).
+    Checks question-word openers and common interrogative phrases.
+    """
+    t = prompt.lower().strip()
+    return any(t.startswith(s) or f" {s}" in t for s in QUESTION_STARTERS)
+
+
+def is_historical_context(prompt: str) -> bool:
+    """
+    Returns True if prompt references a historical atrocity or named event.
+    All matches are pure substring lookups — no regex, no model.
+    """
+    t = prompt.lower()
+    return any(e in t for e in HISTORICAL_ENTITIES + HISTORICAL_NAMED_EVENTS)
+
+
+def is_fictional_context(prompt: str) -> bool:
+    """
+    Returns True if prompt references a known fictional character or game world.
+    Fictional PII (James Bond's SSN, Goofy's passport) is always safe.
+    """
+    t = prompt.lower()
+    return any(n in t for n in FICTIONAL_NAMES + FICTIONAL_GAMES)
+
+
+def is_definitional_question(prompt: str) -> bool:
+    """
+    Returns True if prompt is asking for a definition or explanation of a concept.
+    These are educational in intent — not requests to perform harm.
+    E.g.: "What is money laundering?" "What is child abuse?"
+    """
+    t = prompt.lower().strip()
+    patterns = ["what is ", "what are ", "define ", "explain ", "describe ", "tell me about "]
+    return any(t.startswith(p) for p in patterns)
+
+
+def should_apply_hard_block(prompt: str, category: str) -> bool:
+    """
+    Gate function wrapping all hard-block decisions.
+    Returns False (skip detection for this category) if a context exemption applies.
+
+    Logic:
+      ANY category:
+          if is_definitional_question → False (educational intent, never an attack)
+      Violence/Weapons or Hate Speech:
+          if question_intent AND (historical OR fictional OR definitional) → False
+      Personal Information:
+          if fictional context → False (fictional entities have no real SSN/CC)
+      Default:
+          return True (apply detection normally)
+    """
+    # Broad definitional exemption — covers ALL categories.
+    # "What is child abuse?" / "What is money laundering?" are never attacks.
+    if is_definitional_question(prompt):
+        return False
+    if category in (
+        "Violence / Weapons",
+        "Hate Speech / Discrimination",
+        "Terrorism / Extremism",
+        "Sexual / Harmful Content",
+        "Scam / Social Engineering",
+        "Malware / Hacking"
+    ):
+        if is_question_intent(prompt) and (
+            is_historical_context(prompt)
+            or is_fictional_context(prompt)
+        ):
+            return False
+    if category == "Personal Information":
+        if is_fictional_context(prompt):
+            return False
+    return True
+
+
 class PatternDetector:
     def __init__(self):
         self.patterns = {
@@ -149,7 +250,7 @@ class PatternDetector:
                 r"(?i)\bsandnigger\b",
                 # Hate-framed requests
                 r"(?i)(write|generate|create|give)\s*(me\s*)?(racist|sexist|homophobic|antisemitic|hateful)\s*(joke|content|post|message|comment|speech)",
-                r"(?i)why\s*(are\s*)?(all\s*)?(black|white|jewish|asian|muslim|gay|women|men)\s*(people\s*)?(so\s*)?\w+",
+                r"(?i)why\s*(are\s*)?(all\s*)?(black|white|jewish|asian|muslim|gay|women|men)\s+(people|individuals|men|women|folks|guys|girls)\s+(so\s+)?\w+",
                 r"(?i)(black|jewish|asian|muslim|hispanic)\s*people\s*(are\s*)?(all\s*)?(stupid|inferior|criminals|dangerous|evil)",
             ],
 
@@ -333,15 +434,31 @@ class PatternDetector:
         attack_types = []
         is_malicious = False
 
-        # 1. Regex pass (fast, exact)
+        # 1. Regex pass (fast, exact) — context guards applied per category
         for attack_type, regex_list in self.patterns.items():
+            category_exempted = False
+            matched_in_category = False
+
             for pattern in regex_list:
                 if re.search(pattern, prompt):
-                    is_malicious = True
-                    if attack_type not in attack_types:
-                        attack_types.append(attack_type)
-                    reasons.append(f"Matched known malicious pattern for {attack_type}")
+                    # ── Context Gate ───────────────────────────────────────────
+                    # If should_apply_hard_block returns False, this category
+                    # is a known FP context (historical/fictional/definitional).
+                    # Mark it exempted so the OUTER loop also skips adding it.
+                    # This prevents a concept like 'ethnic cleansing' from
+                    # sneaking through under a sibling category (e.g. Terrorism)
+                    # when it was already exempted under Violence/Weapons.
+                    if not should_apply_hard_block(prompt, attack_type):
+                        category_exempted = True
+                        break
+                    matched_in_category = True
                     break
+
+            if matched_in_category and not category_exempted:
+                is_malicious = True
+                if attack_type not in attack_types:
+                    attack_types.append(attack_type)
+                reasons.append(f"Matched known malicious pattern for {attack_type}")
 
         # 2. Fuzzy pass — only runs if regex missed
         if not is_malicious:

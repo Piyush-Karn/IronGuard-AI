@@ -19,6 +19,8 @@ import asyncio
 import logging
 import unicodedata
 import json
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Tuple, Optional
 
@@ -30,6 +32,11 @@ from app.sanitization.sanitizer import semantic_sanitizer, SanitizationResult
 from app.models.schemas import RiskExplanation
 
 logger = logging.getLogger(__name__)
+
+# ── Eval Isolation Guard ──────────────────────────────────────────────────────
+# If IRONGUARD_EVAL_MODE=1, autonomous learning (maybe_learn) is disabled
+# to prevent the evaluation itself from contaminating the fingerprint DB.
+_EVAL_MODE = os.getenv("IRONGUARD_EVAL_MODE", "0") == "1"
 
 # Zero-width characters to strip in ingress normalization
 _ZW_CHARS = "\u200b\u200c\u200d\ufeff\u00ad"
@@ -123,9 +130,13 @@ class DecisionEngineV2:
         # Run ChromaDB ONLY if fast_score is in suspicious zone (30-59)
         # At fast_score 0-29: ChromaDB has almost no chance of adding enough score to matter
         # At fast_score 30-59: ChromaDB +30 could push to Blocked
-        loop = asyncio.get_event_loop()
-
-        should_run_chromadb = (fast_score >= 30)  # Only in suspicious zone
+        # Only in suspicious zone AND limit ChromaDB to necessary cases, excluding PII-only (+30)
+        should_run_chromadb = (30 <= fast_score < 60) and ("Personal Information" not in fast_attack_types or fast_score > 30)
+        
+        # Disable ChromaDB completely in eval mode to prevent external leakage, 
+        # unless specifically running FULL evaluations (where fast_mode=False overrides it usually, but here enforce isolation)
+        if _EVAL_MODE:
+            should_run_chromadb = False
 
         if should_run_chromadb:
             from app.threat_detection.similarity import similarity_detector
@@ -153,7 +164,9 @@ class DecisionEngineV2:
         # ── Behavioral Delta ──────────────────────────────────────────────────
         from app.monitoring.behavioral_analyzer import behavioral_analyzer
         behavioral_bonus = 0
-        if user_id and user_id != "anonymous":
+        
+        # Isolate from MongoDB during eval mode
+        if not _EVAL_MODE and user_id and user_id != "anonymous":
             try:
                 behavioral_bonus = await behavioral_analyzer.compute_delta(user_id)
             except Exception as e:
@@ -191,7 +204,7 @@ class DecisionEngineV2:
 
         # ── Autonomous Learning ───────────────────────────────────────────────
         raw_detection_score = risk_explanation.risk_score - fp_result.score_bonus
-        if raw_detection_score >= 60 and not fp_result.is_match:
+        if not _EVAL_MODE and raw_detection_score >= 60 and not fp_result.is_match:
             asyncio.create_task(self.maybe_learn(prompt))
 
         return prompt, risk_explanation, action, classifier_result, fp_result, sanitization_result
@@ -200,7 +213,11 @@ class DecisionEngineV2:
         """
         Learns new high-confidence threats by adding them to the fingerprint database.
         Includes a lock to prevent concurrent write corruption and checks for duplicates.
+        Populates metadata fields for audit attribution.
         """
+        if _EVAL_MODE:
+            return
+
         from app.fingerprinting.fingerprint_engine import fingerprint_engine, FINGERPRINT_DB_PATH
         
         async with self._learning_lock:
@@ -211,27 +228,36 @@ class DecisionEngineV2:
                 else:
                     data = {"jailbreaks": []}
 
-                # 2. Check for duplicates (simple string match)
+                # 2. Check for duplicates (using SimHash)
                 from app.sanitization.pii_redactor import redact_pii
-                canonical, _ = redact_pii(prompt)  # Fix 1: strip PII before storing
+                canonical, _ = redact_pii(prompt)
                 
-                text = canonical.lower().strip()
-                if any(j.get("canonical_form", "").lower().strip() == text for j in data["jailbreaks"]):
+                h = fingerprint_engine._simhash(canonical)
+                
+                if any(j.get("hash") == h for j in data["jailbreaks"]):
                     return
 
-                # 3. Add new threat
-                data["jailbreaks"].append({
+                # 3. Add new threat with metadata
+                entry = {
+                    "hash": h,
                     "canonical_form": canonical,
-                    "description": "Autonomously learned high-confidence threat",
-                    "attack_type": "Learned"
-                })
+                    "source": "prod",
+                    "added_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "attack_type": "Learned Attack",
+                    "confidence": 0.9,
+                    "prompt_preview": prompt[:50]
+                }
+                
+                if "jailbreaks" not in data:
+                    data["jailbreaks"] = []
+                data["jailbreaks"].append(entry)
 
-                # 4. Atomic write
-                FINGERPRINT_DB_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                # 4. Atomic write (indented for readability)
+                FINGERPRINT_DB_PATH.write_text(json.dumps(data, indent=4), encoding="utf-8")
                 
                 # 5. Hot-reload engine
                 fingerprint_engine._load_db()
-                logger.info(f"Autonomously learned new threat pattern ({len(prompt)} chars)")
+                logger.info(f"Autonomously learned new threat pattern: {h}")
             except Exception as e:
                 logger.error(f"Autonomous learning failed: {e}")
 

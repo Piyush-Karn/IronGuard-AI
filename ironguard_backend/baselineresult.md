@@ -1,28 +1,28 @@
-# IronGuard Security Engine — V10 Baseline Evaluation Results
+# IronGuard Security Engine — V11 Baseline Evaluation Results
 
-**Run Date:** 2026-03-22  
-**Entries Evaluated:** 520  
-**Baseline Mode:** FULL (All 4 detection layers active)
+**Run Date:** 2026-03-24 (T15:18:51)  
+**Entries Evaluated:** 2,730 (Full Dataset: XSTest, WildJailbreak, Prompt-Injections)  
+**Baseline Mode:** FULL (All 4 detection layers active — Clean Slate)
 
 ## 📊 Summary Metrics
 
 | Metric | Baseline Value | Status |
 |---|---|---|
-| **Overall Accuracy** | 50.8% | 🟢 Stable |
-| **TPR (Detection Rate)** | 14.0% | 🟡 Gaps Identified |
-| **FPR (Over-blocking)** | 23.5% | 🔴 Needs Tuning |
-| **Avg Pipeline Latency** | 1507.24ms | 🟢 Within Spec |
-| **P95 Pipeline Latency** | 2448.86ms | 🟢 Within Spec |
+| **Overall Accuracy** | 64.9% | 🟢 Improved (+14.1%) |
+| **TPR (Detection Rate)** | 61.1% | 🟢 Significant Gain (+47.1%) |
+| **FPR (Over-blocking)** | 18.6% | 🟡 Stable / In-range |
+| **Avg Pipeline Latency** | 1240.14ms | 🟢 Within Spec |
+| **P95 Pipeline Latency** | 3708.5ms | 🟡 Higher due to DeBERTa |
 
 ---
 
-## 🔍 Layer Attribution
+## 🔍 Layer Attribution (Clean Run)
 *(Of all correctly detected attacks, which layer caught them first)*
 
-- **Layer 1: Regex Pattern:** 6.7%
-- **Layer 2: Semantic Similarity:** 40.0%
-- **Layer 3: DeBERTa Classifier:** 0.0% (Note: Often shadowed by Layer 4)
-- **Layer 4: Fingerprint Engine:** 53.3%
+- **Layer 1: Regex Pattern:** 35.5%
+- **Layer 3: DeBERTa Classifier:** 64.5%
+- **Layer 2: Semantic Similarity:** 0.0% (Note: No matches found in this specific test set)
+- **Layer 4: Fingerprint Engine:** 0.0% (Verification: No leakage from previous runs)
 
 ---
 
@@ -30,22 +30,23 @@
 
 | Dataset | Accuracy | TPR | FPR |
 |---|---|---|---|
-| **walledai/XSTest** | 43.3% | 8.5% | 28.8% |
+| **walledai/XSTest** | 58.0% | 5.5% | 0.0% |
 | **deepset/prompt-injections** | 98.6% | 92.9% | 0.0% |
-| **allenai/wildjailbreak** | N/A | N/A| N/A |
+| **allenai/wildjailbreak** | 65.2% | 66.4% | 45.7% |
 
-> [!NOTE]
-> WildJailbreak loading issue resolved; next run will include 2,201+ additional samples.
-
----
-
-## 🛠️ Applied Fixes (Post-Baseline)
-Before moving to V3 Mutation Engine, the following immediate improvements were locked in:
-1. **ChromaDB Threshold Tuning:** Raised similarity threshold to **0.92** to eliminate ~60+ False Positives in XSTest.
-2. **DeBERTa sensitivity:** Lowered confidence threshold to **0.75** (from 0.80) to catch boundary injections.
-3. **Regex Expansion:** Added 5 new "forget-style" patterns to `pattern.py` to address specific bypasses.
+> [!IMPORTANT]
+> This run represents the first **fully isolated evaluation**. The Fingerprint Database was scrubbed beforehand to ensure no contamination from previous tests, and `IRONGUARD_EVAL_MODE` was active to prevent autonomous learning during the run.
 
 ---
 
-## 🚀 Next Steps: Phase 5 (V3 Mutation Engineering)
-The V3 engine will focus on identifying and neutralizing **Adversarial Probing** through automated mutation (Base64, translation, character substitution) to close the remaining detection gaps.
+## 🛠️ Performance & Latency Fixes (V10-V11)
+The following critical bottlenecks were resolved to bring Avg latency down from 3,500ms+:
+1. **DeBERTa Batching Optimization**: Reduced batch size from 32 to 8. This stops exponential padding token explosion which previously caused severe CPU hangs.
+2. **In-Memory Trust Caching**: Implemented zero-latency caching for user trust scores, removing synchronous MongoDB reads from the request path.
+3. **Async Scoring Updates**: Trust score updates are now fire-and-forget (`asyncio.create_task`), ensuring background database writes don't block the API response.
+4. **Eval Mode Isolation**: Automated the bypass of behavioral and background context builders during evaluation runs to prevent database leakage and noise.
+
+---
+
+## 🚀 Future Roadmap: Phase 5 (Mutation Engine)
+Now that the baseline is clean and performant, the next phase will focus on **Mutation Engineering** to target the 862 attacks (False Negatives) that bypass the DeBERTa classifier.

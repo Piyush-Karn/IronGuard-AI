@@ -93,7 +93,7 @@ async def run_evaluation(entries: list[dict]) -> dict:
     if phase2_queue:
         stats.current_dataset = "Phase 2: DeBERTa Batch Inference"
         
-        batch_size = 32
+        batch_size = 8  # Reduced to prevent catastrophic padding O(N^2) latency
         for i in range(0, len(phase2_queue), batch_size):
             chunk = phase2_queue[i : i + batch_size]
             prompts_for_clf = [entry["prompt"] for _, entry, _, _, _, _ in chunk]
