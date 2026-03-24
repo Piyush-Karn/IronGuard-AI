@@ -141,4 +141,4 @@ When detection layers disagree (e.g., Intent Classifier says 85, Semantic Analyz
 
 ---
 
-<div align="right"><a href="./README.md">← Back to README</a></div>
+<div align="right"><a href="../README.md">← Back to README</a></div>

@@ -86,4 +86,4 @@ Database files are stored in Docker volumes. Their location on disk:
 
 ---
 
-<div align="right"><a href="./README.md">← Back to README</a></div>
+<div align="right"><a href="../README.md">← Back to README</a></div>

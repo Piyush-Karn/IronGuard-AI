@@ -152,4 +152,4 @@ IronGuard's multi-module design ensures no single bypass defeats the system:
 
 ---
 
-<div align="right"><a href="./README.md">← Back to README</a></div>
+<div align="right"><a href="../README.md">← Back to README</a></div>

@@ -167,4 +167,4 @@ If you see aggregation errors related to `$percentile`:
 
 ---
 
-<div align="right"><a href="./README.md">← Back to README</a></div>
+<div align="right"><a href="../README.md">← Back to README</a></div>

@@ -159,3 +159,7 @@ Risk assessment only. Returns a detailed security report without contacting the 
 ## Interactive Docs
 The server provides interactive API documentation via Swagger UI at:
 **[http://localhost:8000/docs](http://localhost:8000/docs)**
+
+---
+
+<div align="right"><a href="../README.md">? Back to README</a></div>

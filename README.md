@@ -39,7 +39,7 @@ IronGuard implements a **4-Module Hybrid Architecture** orchestrated for low lat
 | **MOD-3** | 🧬 Fingerprint Engine | Sub-millisecond detection of known jailbreaks using **SimHash** and **MinHash LSH** |
 | **MOD-4** | 🧠 Semantic Sanitizer | Neutralizes suspicious prompts while preserving intent using LLM-based rewriting |
 
-> 📖 For a full deep-dive, see the [Architecture Documentation](./architecture.md) and the [Detection Layers Guide](./detection_layers.md).
+> 📖 For a full deep-dive, see the [Architecture Documentation](./documentation/architecture.md) and the [Detection Layers Guide](./documentation/detection_layers.md).
 
 ---
 
@@ -111,14 +111,14 @@ docker compose exec backend python datasets/init_dataset.py
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](./architecture.md) | System components, data flow, and security rationale |
-| [Detection Layers](./detection_layers.md) | How each detection layer works and scoring weights |
-| [API Reference](./api_reference.md) | Complete endpoint reference with request/response schemas |
-| [Client Integration Guide](./client_integration_guide.md) | HMAC auth + code examples for Python & Node.js |
-| [Database Guide](./database_guide.md) | MongoDB & ChromaDB setup, schema, and maintenance |
-| [Deep Dive](./deep_dive.md) | Advanced technical scenarios for security engineers |
-| [Setup & Deployment](./setup_and_deployment.md) | Local dev, Docker, and production hardening |
-| [Testing Guide](./testing_guide.md) | Running the Pytest & Vitest test suites |
+| [Architecture](./documentation/architecture.md) | System components, data flow, and security rationale |
+| [Detection Layers](./documentation/detection_layers.md) | How each detection layer works and scoring weights |
+| [API Reference](./documentation/api_reference.md) | Complete endpoint reference with request/response schemas |
+| [Client Integration Guide](./documentation/client_integration_guide.md) | HMAC auth + code examples for Python & Node.js |
+| [Database Guide](./documentation/database_guide.md) | MongoDB & ChromaDB setup, schema, and maintenance |
+| [Deep Dive](./documentation/deep_dive.md) | Advanced technical scenarios for security engineers |
+| [Setup & Deployment](./documentation/setup_and_deployment.md) | Local dev, Docker, and production hardening |
+| [Testing Guide](./documentation/testing_guide.md) | Running the Pytest & Vitest test suites |
 
 ---
 

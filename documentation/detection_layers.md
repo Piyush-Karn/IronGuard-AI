@@ -130,4 +130,4 @@ If **any layer** reports a `100%` confidence Hard Block (e.g., a regex match on 
 
 ---
 
-<div align="right"><a href="./README.md">← Back to README</a></div>
+<div align="right"><a href="../README.md">← Back to README</a></div>
